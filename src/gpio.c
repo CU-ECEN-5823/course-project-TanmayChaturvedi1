@@ -7,7 +7,10 @@
 #include "gpio.h"
 #include "em_gpio.h"
 #include <string.h>
-
+#include "hal-config.h"
+#include "gpiointerrupt.h"
+#include "em_core.h"
+#include "native_gecko.h"
 
 #define	LED0_port gpioPortF
 #define LED0_pin	4
@@ -22,6 +25,8 @@ void gpioInit()
 	GPIO_DriveStrengthSet(LED1_port, gpioDriveStrengthWeakAlternateStrong);
 	//GPIO_DriveStrengthSet(LED1_port, gpioDriveStrengthWeakAlternateWeak);
 	GPIO_PinModeSet(LED1_port, LED1_pin, gpioModePushPull, false);
+	GPIO_PinModeSet(gpioPortF,6,gpioModePushPull, 1);
+	GPIO_PinModeSet(gpioPortF,7,gpioModePushPull, 1);
 }
 
 void gpioLed0SetOn()
@@ -40,3 +45,63 @@ void gpioLed1SetOff()
 {
 	GPIO_PinOutClear(LED1_port,LED1_pin);
 }
+
+
+void gpio_set_interrupt(void)
+{
+	NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
+	NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+
+	/* configure interrupt for PB0 and PB1, both falling and rising edges */
+	GPIO_ExtIntConfig(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN, BSP_BUTTON0_PIN, true, true, true);
+
+	/* register the callback function that is invoked when interrupt occurs */
+	GPIOINT_CallbackRegister(BSP_BUTTON0_PIN, gpioint);
+
+}
+
+
+/***************************************************************************//**
+ * Sourced from SI Labs Mesh Switch Example. This is like GPIO IRQ Handler
+ * This is a callback function that is invoked each time a GPIO interrupt
+ * in one of the pushbutton inputs occurs. Pin number is passed as parameter.
+ *
+ * @param[in] pin  Pin number where interrupt occurs
+ *
+ * @note This function is called from ISR context and therefore it is
+ *       not possible to call any BGAPI functions directly. The button state
+ *       change is signaled to the application using gecko_external_signal()
+ *       that will generate an event gecko_evt_system_external_signal_id
+ *       which is then handled in the main loop.
+ ******************************************************************************/
+void gpioint(uint8_t pin)
+{
+	//CORE_DECLARE_IRQ_STATE;
+	if (pin == BSP_BUTTON0_PIN)
+	{
+		ext_sig_event |= PB0_STATE;
+		gecko_external_signal(ext_sig_event);
+	}
+}
+
+
+//
+//void GPIO_EVEN_IRQHandler(void)
+//{
+//	LOG_INFO("in GPIO Interrupts IRQ\n");
+//	//uint32_t interrupt = GPIO->IFC;
+//	uint32_t interrupt = GPIO_IntGet();
+//	GPIO_IntClear(interrupt);
+///*
+// * I think it's not necessary to define a critical section
+// * as only 1 GPIO interrupt.
+// */
+////	CORE_DECLARE_IRQ_STATE;
+////	CORE_ENTER_CRITICAL( );
+//	ext_sig_event |= PB0_STATE;
+//	gecko_external_signal( ext_sig_event );
+//
+////	CORE_EXIT_CRITICAL( );
+//	LOG_INFO("eXIT GPIO Interrupts IRQ\n");
+//
+//}

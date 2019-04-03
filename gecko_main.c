@@ -16,6 +16,9 @@
  * sections of the MSLA applicable to Source Code.
  *
  ******************************************************************************/
+/* C Standard Library headers */
+#include <stdlib.h>
+#include <stdio.h>
 
 /* Board headers */
 #include "init_mcu.h"
@@ -30,6 +33,10 @@
 #include "gatt_db.h"
 #include <gecko_configuration.h>
 #include <mesh_sizes.h>
+#include "mesh_generic_model_capi_types.h"
+#include "mesh_lib.h"
+#include "native_gecko.h"
+#include "retargetserial.h"
 
 /* Libraries containing default Gecko configuration values */
 #include "em_emu.h"
@@ -45,6 +52,9 @@
 #include "bspconfig.h"
 #endif
 #include "src/ble_mesh_device_type.h"
+#include "src/mydisplay.h"
+#include "src/gpio.h"
+#include "src/log.h"
 
 /***********************************************************************************************//**
  * @addtogroup Application
@@ -133,9 +143,10 @@ void gecko_bgapi_classes_init_server_friend(void)
 	//gecko_bgapi_class_mesh_health_client_init();
 	//gecko_bgapi_class_mesh_health_server_init();
 	//gecko_bgapi_class_mesh_test_init();
-	gecko_bgapi_class_mesh_lpn_init();
-	//gecko_bgapi_class_mesh_friend_init();
+	//gecko_bgapi_class_mesh_lpn_init();
+	gecko_bgapi_class_mesh_friend_init();
 }
+
 
 
 /**
@@ -169,7 +180,10 @@ void gecko_bgapi_classes_init_client_lpn(void)
 	//gecko_bgapi_class_mesh_friend_init();
 
 }
+
+
 void gecko_main_init()
+
 {
   // Initialize device
   initMcu();
@@ -182,32 +196,381 @@ void gecko_main_init()
   // interrupt the scanner.
   linklayer_priorities.scan_max = linklayer_priorities.adv_min + 1;
 
+
   gecko_stack_init(&config);
 
-  if( DeviceUsesClientModel() ) {
+#if DEVICE_IS_ONOFF_PUBLISHER
+
 	  gecko_bgapi_classes_init_client_lpn();
-  } else {
+#else
 	  gecko_bgapi_classes_init_server_friend();
-  }
+#endif
 
   // Initialize coexistence interface. Parameters are taken from HAL config.
   gecko_initCoexHAL();
 
+
+  //gecko_bgapi_classes_init();
+
+  // Initialize coexistence interface. Parameters are taken from HAL config.
+  gecko_initCoexHAL();
+
+  RETARGET_SerialInit();
+#if defined(_SILICON_LABS_32B_SERIES_1_CONFIG_3)
+  /* xG13 devices have two RTCCs, one for the stack and another for the application.
+   * The clock for RTCC needs to be enabled in application code. In xG12 RTCC init
+   * is handled by the stack */
+  CMU_ClockEnable(cmuClock_RTCC, true);
+#endif
+
 }
 
+
+/* ***************************************************
+ * MACROS (sourced from Silicon Labs Example)
+ *
+ * Timer handles defines.
+ ****************************************************/
+#define TIMER_ID_RESTART          78
+#define TIMER_ID_FACTORY_RESET    77
+#define TIMER_ID_PROVISIONING     66
+#define TIMER_ID_RETRANS          10
+#define TIMER_ID_FRIEND_FIND      20
+#define TIMER_ID_NODE_CONFIGURED  30
+
+/* ***************************************************
+ * FUNCTION PROTOTYPES
+ *
+ ****************************************************/
+void initiate_factory_reset(void);
+void set_device_name(bd_addr *pAddr);
+void publish_button_state(int retrans);
+static void init_models(void);
+static void client_request_cb(uint16_t model_id,
+                          uint16_t element_index,
+                          uint16_t client_addr,
+                          uint16_t server_addr,
+                          uint16_t appkey_index,
+                          const struct mesh_generic_request *request,
+                          uint32_t transition_ms,
+                          uint16_t delay_ms,
+                          uint8_t request_flags);
+
+void mesh_lib_generic_server_event_handler(struct gecko_cmd_packet *evt);
+static errorcode_t onoff_update_and_publish(uint16_t element_index,
+                                            uint32_t remaining_ms);
+static void state_changed_cb(uint16_t model_id,
+                         uint16_t element_index,
+                         const struct mesh_generic_state *current,
+                         const struct mesh_generic_state *target,
+                         uint32_t remaining_ms);
+
+static errorcode_t onoff_update(uint16_t element_index, uint32_t remaining_ms);
+
+
+/* ***************************************************
+ * GLOBAL VARIABLES
+ *
+ ****************************************************/
+static uint8 request_count;
+
+// handle of the last opened LE connection
+static uint8 conn_handle = 0xFF;
+
+// For indexing elements of the node
+static uint16 _elem_index = 0xffff;
+
+// transaction identifier
+static uint8 trid = 0;
+
+// current position of the switch
+static uint8 switch_pos = 0;
+
+/* For indexing elements of the node */
+static uint16 _primary_elem_index = 0xffff;
+
+#if DEVICE_IS_ONOFF_PUBLISHER
+
+/*Event Handler for BL Mesh and BLE Stack
+ * for Publisher
+ *
+ * @param	evt_id:	Incoming event ID
+ * @param	*evt:	Pointer to event
+ * @return	none
+ */
 void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 {
+  uint16 ret_status;
+  char buf[30];
+
+  if (NULL == evt)
+  {
+	return;
+  }
   switch (evt_id) {
     case gecko_evt_system_boot_id:
-      // Initialize Mesh stack in Node operation mode, wait for initialized event
-      gecko_cmd_mesh_node_init();
+    // Initialize Mesh stack in Node operation mode, wait for initialized event and
+	//Check if either PB0 or PB1 is pressed at Startup
+	//Should initiate factory reset at Startup
+	if (GPIO_PinInGet(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN) == 0 || GPIO_PinInGet(BSP_BUTTON1_PORT, BSP_BUTTON1_PIN) == 0)
+	{
+		//Initiate Factory Reset
+		initiate_factory_reset();
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Factory Reset");
+#endif
+
+	}
+
+	else	//if no button press detected
+	{
+		//Get BT address
+		struct gecko_msg_system_get_bt_address_rsp_t *bt_addr = gecko_cmd_system_get_bt_address();
+
+		set_device_name(&bt_addr->address);
+		ret_status = gecko_cmd_mesh_node_init()->result;
+	}
       break;
+
+    case gecko_evt_hardware_soft_timer_id:
+    	gecko_cmd_system_reset(0);
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"");
+#endif
+    	break;
+
+
     case gecko_evt_mesh_node_initialized_id:
-      if (!evt->data.evt_mesh_node_initialized.provisioned) {
+    	//if not provisioned, start provisioning
+    	if (!evt->data.evt_mesh_node_initialized.provisioned)
+    	{
         // The Node is now initialized, start unprovisioned Beaconing using PB-ADV and PB-GATT Bearers
-        gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
+    		gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
+    	}
+
+    	//if Provisioned
+    	if (evt->data.evt_mesh_node_initialized.provisioned)
+    	{
+    		_elem_index = 0;
+    	// Initialize generic client models
+    		ret_status = gecko_cmd_mesh_generic_client_init()->result;
+    	      if (ret_status)
+    	      {
+    	            LOG_INFO("mesh_generic_client_init failed, code 0x%x\r\n", ret_status);
+    	      }
+    	// Set GPIO Interrupt
+    	      gpio_set_interrupt();
+    	// Initialize mesh lib, up to 8 models
+    	      mesh_lib_init(malloc, free, 8);
+    	}
+
+    	break;
+
+    case gecko_evt_mesh_node_provisioning_started_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioning");
+#endif
+		break;
+
+    case gecko_evt_mesh_node_provisioned_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioned");
+#endif
+		break;
+
+    case gecko_evt_mesh_node_provisioning_failed_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioning Failed");
+#endif
+		break;
+
+
+    case gecko_evt_le_connection_opened_id:
+    	//Store connection handle information
+    	conn_handle = evt->data.evt_le_connection_opened.connection;
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_CONNECTION,"Connected");
+#endif
+    	break;
+
+    case gecko_evt_le_connection_closed_id:
+      /* Check if need to boot to dfu mode */
+      if (boot_to_dfu) {
+        /* Enter to DFU OTA mode */
+        gecko_cmd_system_reset(2);
+      }
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_CONNECTION, "");
+#endif
+      break;
+
+
+    case gecko_evt_system_external_signal_id:
+	if(evt->data.evt_system_external_signal.extsignals & PB0_STATE)
+	{
+		ext_sig_event &= ~(PB0_STATE);
+
+		if (GPIO_PinInGet(gpioPortF,6))
+		{
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+	displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
+#endif
+		switch_pos = MESH_GENERIC_ON_OFF_STATE_OFF;
+		publish_button_state(0);
+		}
+
+		else if (GPIO_PinInGet(gpioPortF,6)==0)
+		{
+		//ext_sig_event &= ~(PB0_RELEASED);
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+	displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
+#endif
+		}
+		switch_pos = MESH_GENERIC_ON_OFF_STATE_ON;
+		publish_button_state(0);
+	}
+	break;
+
+
+
+
+
+    case gecko_evt_gatt_server_user_write_request_id:
+      if (evt->data.evt_gatt_server_user_write_request.characteristic == gattdb_ota_control) {
+        /* Set flag to enter to OTA mode */
+        boot_to_dfu = 1;
+        /* Send response to Write Request */
+        gecko_cmd_gatt_server_send_user_write_response(
+          evt->data.evt_gatt_server_user_write_request.connection,
+          gattdb_ota_control,
+          bg_err_success);
+
+        /* Close connection to enter to DFU OTA mode */
+        gecko_cmd_le_connection_close(evt->data.evt_gatt_server_user_write_request.connection);
       }
       break;
+
+    default:
+      break;
+  }
+}
+
+
+
+#else
+
+/*Event Handler for BL Mesh and BLE Stack
+ * for Subscriber
+ *
+ * @param	evt_id:	Incoming event ID
+ * @param	*evt:	Pointer to event
+ * @return	none
+ */
+void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
+{
+  uint16 ret_status;
+  char buf[30];
+
+  if (NULL == evt)
+  {
+	return;
+  }
+  switch (evt_id) {
+    case gecko_evt_system_boot_id:
+    // Initialize Mesh stack in Node operation mode, wait for initialized event
+	//Check if either PB0 or PB1 is pressed at Startup
+	//Should initiate factory reset at Startup
+	if (GPIO_PinInGet(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN) == 0 || GPIO_PinInGet(BSP_BUTTON1_PORT, BSP_BUTTON1_PIN) == 0)
+	{
+		//Initiate Factory Reset
+		initiate_factory_reset();
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Factory Reset");
+#endif
+
+	}
+
+	else	//if no button press detected
+	{
+		//Get BT address
+		struct gecko_msg_system_get_bt_address_rsp_t *bt_addr = gecko_cmd_system_get_bt_address();
+		set_device_name(&bt_addr->address);
+		ret_status = gecko_cmd_mesh_node_init()->result;
+	}
+      break;
+
+    case gecko_evt_hardware_soft_timer_id:
+    	gecko_cmd_system_reset(0);
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"");
+#endif
+    	break;
+
+
+    case gecko_evt_mesh_node_initialized_id:
+    	//if not provisioned, start provisioning
+    	if (!evt->data.evt_mesh_node_initialized.provisioned)
+    	{
+        // The Node is now initialized, start unprovisioned Beaconing using PB-ADV and PB-GATT Bearers
+    		gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
+    	}
+
+    	//if Provisioned
+    	if (evt->data.evt_mesh_node_initialized.provisioned)
+    	{
+    	// Initialize generic server models
+    		ret_status = gecko_cmd_mesh_generic_server_init()->result;
+    	      if (ret_status)
+    	      {
+    	    	  LOG_INFO("mesh_generic_server_init failed, code 0x%x\r\n", ret_status);
+    	      }
+    	// Initialize mesh lib, up to 9 models
+    	      mesh_lib_init(malloc, free, 9);
+    	      init_models();
+    	      _primary_elem_index = 0;
+    	      onoff_update_and_publish(_primary_elem_index, 0);
+    	      onoff_update(_primary_elem_index, 0);
+
+
+    	}
+    	break;
+
+    case gecko_evt_mesh_node_provisioning_started_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioning");
+#endif
+		break;
+
+    case gecko_evt_mesh_node_provisioned_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioned");
+#endif
+		break;
+
+    case gecko_evt_mesh_node_provisioning_failed_id:
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_NAME,"Provisioning Failed");
+#endif
+		break;
+
+
+    case gecko_evt_mesh_generic_server_client_request_id:
+      // pass the server client request event to mesh lib handler that will invoke
+      // the callback functions registered by application
+      mesh_lib_generic_server_event_handler(evt);
+      break;
+
+
+    case gecko_evt_mesh_generic_server_state_changed_id:
+
+      // uncomment following line to get debug prints for each server state changed event
+      //server_state_changed(&(evt->data.evt_mesh_generic_server_state_changed));
+
+      // pass the server state changed event to mesh lib handler that will invoke
+      // the callback functions registered by application
+      mesh_lib_generic_server_event_handler(evt);
+      break;
+
     case gecko_evt_le_connection_closed_id:
       /* Check if need to boot to dfu mode */
       if (boot_to_dfu) {
@@ -215,6 +578,9 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_system_reset(2);
       }
       break;
+
+
+
     case gecko_evt_gatt_server_user_write_request_id:
       if (evt->data.evt_gatt_server_user_write_request.characteristic == gattdb_ota_control) {
         /* Set flag to enter to OTA mode */
@@ -233,3 +599,305 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       break;
   }
 }
+
+
+
+
+
+#endif
+
+/* If any button press detected,
+ * Clear the Persistent Storage Memory
+ * Configure a timer to perform reset after 2 seconds
+ *
+ */
+void initiate_factory_reset(void)
+{
+	/*Need to acquire previous LE connection handle*/
+
+	//Clear PS
+	gecko_cmd_flash_ps_erase_all();
+	// reboot after a small delay
+	gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FACTORY_RESET, 1);
+}
+
+
+
+/* Set device name in the GATT database. A unique name is generated using
+ * the two last bytes from the Bluetooth address of this device. Name is also
+ * displayed on the LCD.
+ *
+ * @param[in] pAddr  Pointer to Bluetooth address.
+ * [Source]: Silicon Labs Mesh Example
+ */
+void set_device_name(bd_addr *pAddr)
+{
+  char name[20];
+  uint16 res;
+
+  // create unique device name using the last two bytes of the Bluetooth address
+
+#if DEVICE_IS_ONOFF_PUBLISHER
+  sprintf(name, "ECENPub %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
+#else
+  sprintf(name, "ECENSub %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
+#endif
+
+  //printf("Device name: '%s'\r\n", name);
+
+  // write device name to the GATT database
+  res = gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name)->result;
+  if (res) {
+   // printf("gecko_cmd_gatt_server_write_attribute_value() failed, code %x\r\n", res);
+  }
+
+  // show device name on the LCD
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+  	  displayPrintf(DISPLAY_ROW_NAME,name);
+#endif
+}
+
+
+/*
+ * Publishes the state of Button PB0 to the subscriber
+ * @param	none
+ * @return	none
+ */
+void publish_button_state(int retrans)
+{
+	  uint16 resp;
+	  uint16 delay;
+	  struct mesh_generic_request req;
+	  const uint32 transtime = 0; /* using zero transition time by default */
+	  delay = 0;
+	  req.kind = mesh_generic_request_on_off;
+	  req.on_off = switch_pos ? MESH_GENERIC_ON_OFF_STATE_ON : MESH_GENERIC_ON_OFF_STATE_OFF;
+
+	  LOG_INFO("req.on_off %d", req.on_off );
+
+	  // increment transaction ID for each request, unless it's a retransmission
+	  if (retrans == 0) {
+	    trid++;
+	  }
+
+
+	  if (switch_pos == MESH_GENERIC_ON_OFF_STATE_ON)
+	  {
+
+
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Pressed");
+#endif
+	  }
+	  else if ( switch_pos == MESH_GENERIC_ON_OFF_STATE_OFF)
+	  {
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Released");
+#endif
+	  }
+
+	  resp = mesh_lib_generic_client_publish(
+	    MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID,
+	    _elem_index,
+	    trid,
+	    &req,
+	    transtime,   // transition time in ms
+	    delay,
+	    0     // flags
+	    );
+	  if (resp) {
+	    LOG_INFO("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp);
+	  } else {
+	    LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid, delay);
+	  }
+}
+
+
+struct reg {
+  uint16_t model_id;
+  uint16_t elem_index;
+  union {
+    struct {
+      mesh_lib_generic_server_client_request_cb client_request_cb;
+      mesh_lib_generic_server_change_cb state_changed_cb;
+    } server;
+    struct {
+      mesh_lib_generic_client_server_response_cb server_response_cb;
+    } client;
+  };
+};
+
+
+#if DEVICE_IS_ONOFF_PUBLISHER
+#else
+
+static struct reg *reg = NULL;
+static size_t regs = 0;
+
+
+static struct reg *find_reg(uint16_t model_id,
+                            uint16_t elem_index)
+{
+  size_t r;
+  for (r = 0; r < regs; r++) {
+    if (reg[r].model_id == model_id && reg[r].elem_index == elem_index) {
+      return &reg[r];
+    }
+  }
+  return NULL;
+}
+
+
+/***************************************************************************//**
+ * Sourced from SI labs Mesh Light Example (lighbulb.c)
+ * Initialization of the models supported by this node.
+ * This function registers callbacks for each of the supported models.
+ ******************************************************************************/
+static void init_models(void)
+{
+  mesh_lib_generic_server_register_handler(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                           0,
+										   client_request_cb,
+										   state_changed_cb);
+
+}
+
+
+
+/***************************************************************************//**
+ * Sourced from SI labs Mesh Light Example (lighbulb.c)
+ * This function process the requests for the generic on/off model.
+ *
+ * @param[in] model_id       Server model ID.
+ * @param[in] element_index  Server model element index.
+ * @param[in] client_addr    Address of the client model which sent the message.
+ * @param[in] server_addr    Address the message was sent to.
+ * @param[in] appkey_index   The application key index used in encrypting the request.
+ * @param[in] request        Pointer to the request structure.
+ * @param[in] transition_ms  Requested transition time (in milliseconds).
+ * @param[in] delay_ms       Delay time (in milliseconds).
+ * @param[in] request_flags  Message flags. Bitmask of the following:
+ *                           - Bit 0: Nonrelayed. If nonzero indicates
+ *                                    a response to a nonrelayed request.
+ *                           - Bit 1: Response required. If nonzero client
+ *                                    expects a response from the server.
+ ******************************************************************************/
+static void client_request_cb(uint16_t model_id,
+                          uint16_t element_index,
+                          uint16_t client_addr,
+                          uint16_t server_addr,
+                          uint16_t appkey_index,
+                          const struct mesh_generic_request *request,
+                          uint32_t transition_ms,
+                          uint16_t delay_ms,
+                          uint8_t request_flags)
+{
+
+	LOG_INFO("model_id %d\r\n", model_id);
+
+	LOG_INFO("element_index %d\r\n", element_index);
+
+	LOG_INFO("request->on_off %d\r\n", request->on_off);
+	if( request->on_off == MESH_GENERIC_ON_OFF_STATE_ON)
+	{
+		LOG_INFO("request->on_off %d\r\n", request->on_off);
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+  	  displayPrintf(DISPLAY_ROW_ACTION,"Button Pressed");
+#endif
+	}
+
+	else if ( request->on_off == MESH_GENERIC_ON_OFF_STATE_ON) //button released
+	{
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+  	  displayPrintf(DISPLAY_ROW_ACTION,"Button Pressed");
+#endif
+	}
+	onoff_update_and_publish(element_index, 0);
+}
+
+
+
+/***************************************************************************//**
+ * Sourced from SI Labs Mesh Light Example
+ * Update generic on/off state and publish model state to the network.
+ *
+ * @param[in] element_index  Server model element index.
+ * @param[in] remaining_ms   The remaining time in milliseconds.
+ *
+ * @return Status of the update and publish operation.
+ *         Returns bg_err_success (0) if succeed, non-zero otherwise.
+ ******************************************************************************/
+static errorcode_t onoff_update_and_publish(uint16_t element_index,
+                                            uint32_t remaining_ms)
+{
+  errorcode_t e;
+
+  e = onoff_update(element_index, remaining_ms);
+  if (e == bg_err_success) {
+    e = mesh_lib_generic_server_publish(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                        element_index,
+                                        mesh_generic_state_on_off);
+    LOG_INFO("in onoff_update_and_publish: success");
+  }
+
+  return e;
+}
+
+
+/***************************************************************************//**
+ * Sourced from SI Labs Mesh Light Example
+ * Update generic on/off state.
+ *
+ * @param[in] element_index  Server model element index.
+ * @param[in] remaining_ms   The remaining time in milliseconds.
+ *
+ * @return Status of the update operation.
+ *         Returns bg_err_success (0) if succeed, non-zero otherwise.
+ ******************************************************************************/
+static errorcode_t onoff_update(uint16_t element_index, uint32_t remaining_ms)
+{
+  struct mesh_generic_state current, target;
+
+  current.kind = mesh_generic_state_on_off;
+  current.on_off.on = 0;
+
+  target.kind = mesh_generic_state_on_off;
+  target.on_off.on = 1;
+
+  return mesh_lib_generic_server_update(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                        element_index,
+                                        &current,
+                                        &target,
+                                        remaining_ms);
+}
+
+
+/***************************************************************************//**
+ * Sourced from SI Labs Light Change
+ * This function is a handler for generic on/off change event.
+ *
+ * @param[in] model_id       Server model ID.
+ * @param[in] element_index  Server model element index.
+ * @param[in] current        Pointer to current state structure.
+ * @param[in] target         Pointer to target state structure.
+ * @param[in] remaining_ms   Time (in milliseconds) remaining before transition
+ *                           from current state to target state is complete.
+ ******************************************************************************/
+static void state_changed_cb(uint16_t model_id,
+                         uint16_t element_index,
+                         const struct mesh_generic_state *current,
+                         const struct mesh_generic_state *target,
+                         uint32_t remaining_ms)
+{
+	LOG_INFO("In Onoff_change");
+//  if (current->on_off.on != lightbulb_state.onoff_current) {
+//    printf("on-off state changed %u to %u\r\n", lightbulb_state.onoff_current, current->on_off.on);
+//
+//    lightbulb_state.onoff_current = current->on_off.on;
+//    lightbulb_state_changed();
+//  } else {
+//    printf("dummy onoff change - same state as before\r\n");
+//  }
+}
+
+#endif

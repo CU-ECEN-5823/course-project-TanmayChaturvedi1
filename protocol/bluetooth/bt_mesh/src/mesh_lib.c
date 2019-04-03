@@ -20,6 +20,8 @@
 /* BG stack headers */
 #include "bg_types.h"
 
+#include "src/log.h"
+
 #if (!defined(MESH_LIB_NATIVE) && !defined(MESH_LIB_HOST)) \
   || (defined(MESH_LIB_NATIVE) && defined(MESH_LIB_HOST))
 #error "You must define either MESH_LIB_NATIVE or MESH_LIB_HOST, and not both!"
@@ -310,6 +312,9 @@ mesh_lib_generic_server_publish(uint16_t model_id,
                                 uint16_t element_index,
                                 mesh_generic_state_t kind)
 {
+
+	LOG_INFO("kind = %d",kind);
+	LOG_INFO("mesh_lib_generic_server_publish %d",gecko_cmd_mesh_generic_server_publish(model_id, element_index, kind)->result);
   return gecko_cmd_mesh_generic_server_publish(model_id,
                                                element_index,
                                                kind)->result;
