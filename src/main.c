@@ -1,3 +1,7 @@
+/* Modified by Tanmay Chaturvedi
+ * Date: 3 April 2019
+ * evt scheduler in gecko_main.c
+*/
 #include <stdbool.h>
 #include "native_gecko.h"
 #include "log.h"
