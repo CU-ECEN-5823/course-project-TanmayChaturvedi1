@@ -451,9 +451,10 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
 #endif
-		}
 		publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
 		break;
+		}
+
 	}
 	break;
 
