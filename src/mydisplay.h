@@ -33,7 +33,12 @@
 #define ECEN5823_INCLUDE_DISPLAY_SUPPORT 1
 
 #include "glib.h"
-
+#include "native_gecko.h"
+#define UPDATE_DISPLAY	(0x60)
+#define	TIMER_SUPPORTS_1HZ_TIMER_EVENT	1
+#define SCHEDULER_SUPPORTS_DISPLAY_UPDATE_EVENT 1
+#define GPIO_SET_DISPLAY_EXT_COMIN_IMPLEMENTED 1
+#define GPIO_DISPLAY_SUPPORT_IMPLEMENTED 1
 /**
  * Display row definitions, used for writing specific content based on assignment requirements.
  * See assignment text for details.

@@ -11,6 +11,7 @@
 #include "main.h"
 #include <stdlib.h>
 #include <stdint.h>
+#include "displayls013b7dh03config.h"
 
 void gpioInit();
 void gpioLed0SetOn();
@@ -19,6 +20,9 @@ void gpioLed1SetOn();
 void gpioLed1SetOff();
 void gpio_set_interrupt();
 void gpioint(uint8_t pin);
+void gpioEnableDisplay();
+void gpioSetDisplayExtcomin(bool high);
+
 
 #define	PB0_STATE	(uint32_t)(0x05)
 #define	PB0_PRESSED	(uint8_t)(0x01)

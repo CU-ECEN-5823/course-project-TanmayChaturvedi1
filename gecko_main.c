@@ -238,6 +238,7 @@ void gecko_main_init()
 #define TIMER_ID_FRIEND_FIND      20
 #define TIMER_ID_NODE_CONFIGURED  30
 
+
 /* ***************************************************
  * FUNCTION PROTOTYPES
  *
@@ -284,7 +285,7 @@ static uint16 _elem_index = 0xffff;
 static uint8 trid = 0;
 
 // current position of the switch
-static uint8 switch_pos = 0;
+volatile uint8 switch_pos = 0;
 
 /* For indexing elements of the node */
 static uint16 _primary_elem_index = 0xffff;
@@ -316,8 +317,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 	{
 		//Initiate Factory Reset
 		initiate_factory_reset();
+		if (conn_handle != 0xFF)
+		{
+			gecko_cmd_le_connection_close(conn_handle);
+		}
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Factory Reset");
+		displayPrintf(DISPLAY_ROW_ACTION,"Factory Reset");
 #endif
 
 	}
@@ -333,11 +338,28 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       break;
 
     case gecko_evt_hardware_soft_timer_id:
-    	gecko_cmd_system_reset(0);
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"");
-#endif
+    	switch(evt->data.evt_hardware_soft_timer.handle)
+    	{
+    	case TIMER_ID_FACTORY_RESET:
+        	gecko_cmd_system_reset(0);
+    #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+    		displayPrintf(DISPLAY_ROW_NAME,"");
+    #endif
+        	break;
+
+    	case LOG_TIMER:
+    		msec += 10;
+    		break;
+
+    	case UPDATE_DISPLAY:
+    		LOG_INFO("display update");
+    		displayUpdate();
+    		break;
+
+    	}
     	break;
+
+
 
 
     case gecko_evt_mesh_node_initialized_id:
@@ -368,19 +390,19 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
     case gecko_evt_mesh_node_provisioning_started_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioning");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioning");
 #endif
 		break;
 
     case gecko_evt_mesh_node_provisioned_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioned");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioned");
 #endif
 		break;
 
     case gecko_evt_mesh_node_provisioning_failed_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioning Failed");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioning Failed");
 #endif
 		break;
 
@@ -415,19 +437,20 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
 #endif
-		switch_pos = MESH_GENERIC_ON_OFF_STATE_OFF;
-		publish_button_state(0);
+
+		publish_button_state(MESH_GENERIC_ON_OFF_STATE_OFF);
+		break;
 		}
 
-		else if (GPIO_PinInGet(gpioPortF,6)==0)
+		if (GPIO_PinInGet(gpioPortF,6)==0)
 		{
 		//ext_sig_event &= ~(PB0_RELEASED);
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
 #endif
 		}
-		switch_pos = MESH_GENERIC_ON_OFF_STATE_ON;
-		publish_button_state(0);
+		publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
+		break;
 	}
 	break;
 
@@ -449,6 +472,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_le_connection_close(evt->data.evt_gatt_server_user_write_request.connection);
       }
       break;
+
+
+    case gecko_evt_mesh_node_reset_id:
+    	gecko_cmd_flash_ps_erase_all();
+    	gecko_cmd_hardware_set_soft_timer( 2 * 32768, TIMER_ID_FACTORY_RESET, 1);
+    	break;
 
     default:
       break;
@@ -485,7 +514,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		//Initiate Factory Reset
 		initiate_factory_reset();
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Factory Reset");
+		displayPrintf(DISPLAY_ROW_ACTION,"Factory Reset");
 #endif
 
 	}
@@ -500,11 +529,27 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       break;
 
     case gecko_evt_hardware_soft_timer_id:
-    	gecko_cmd_system_reset(0);
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"");
-#endif
+    	switch(evt->data.evt_hardware_soft_timer.handle)
+    	{
+    	case TIMER_ID_FACTORY_RESET:
+        	gecko_cmd_system_reset(0);
+    #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+    		displayPrintf(DISPLAY_ROW_NAME,"");
+    #endif
+        	break;
+
+    	case LOG_TIMER:
+    		msec += 10;
+    		break;
+
+    	case UPDATE_DISPLAY:
+    		LOG_INFO("display update");
+    		displayUpdate();
+    		break;
+
+    	}
     	break;
+
 
 
     case gecko_evt_mesh_node_initialized_id:
@@ -529,7 +574,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	      init_models();
     	      _primary_elem_index = 0;
     	      onoff_update_and_publish(_primary_elem_index, 0);
-    	      onoff_update(_primary_elem_index, 0);
+    	     // onoff_update(_primary_elem_index, 0);
 
 
     	}
@@ -537,19 +582,19 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
     case gecko_evt_mesh_node_provisioning_started_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioning");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioning");
 #endif
 		break;
 
     case gecko_evt_mesh_node_provisioned_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioned");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioned");
 #endif
 		break;
 
     case gecko_evt_mesh_node_provisioning_failed_id:
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_NAME,"Provisioning Failed");
+		displayPrintf(DISPLAY_ROW_ACTION,"Provisioning Failed");
 #endif
 		break;
 
@@ -570,6 +615,16 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       // the callback functions registered by application
       mesh_lib_generic_server_event_handler(evt);
       break;
+
+
+    case gecko_evt_le_connection_opened_id:
+    	//Store connection handle information
+    	conn_handle = evt->data.evt_le_connection_opened.connection;
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_CONNECTION,"Connected");
+#endif
+    	break;
+
 
     case gecko_evt_le_connection_closed_id:
       /* Check if need to boot to dfu mode */
@@ -595,6 +650,11 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_le_connection_close(evt->data.evt_gatt_server_user_write_request.connection);
       }
       break;
+
+    case gecko_evt_mesh_node_reset_id:
+    	gecko_cmd_flash_ps_erase_all();
+    	gecko_cmd_hardware_set_soft_timer( 2 * 32768, TIMER_ID_FACTORY_RESET, 1);
+    	break;
     default:
       break;
   }
@@ -648,7 +708,7 @@ void set_device_name(bd_addr *pAddr)
   // write device name to the GATT database
   res = gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name)->result;
   if (res) {
-   // printf("gecko_cmd_gatt_server_write_attribute_value() failed, code %x\r\n", res);
+   LOG_INFO("gecko_cmd_gatt_server_write_attribute_value() failed, code %x\r\n", res);
   }
 
   // show device name on the LCD
@@ -663,15 +723,16 @@ void set_device_name(bd_addr *pAddr)
  * @param	none
  * @return	none
  */
-void publish_button_state(int retrans)
+void publish_button_state(int button_state)
 {
+	  int retrans = 0;
 	  uint16 resp;
 	  uint16 delay;
 	  struct mesh_generic_request req;
 	  const uint32 transtime = 0; /* using zero transition time by default */
 	  delay = 0;
 	  req.kind = mesh_generic_request_on_off;
-	  req.on_off = switch_pos ? MESH_GENERIC_ON_OFF_STATE_ON : MESH_GENERIC_ON_OFF_STATE_OFF;
+	  req.on_off = button_state ? MESH_GENERIC_ON_OFF_STATE_ON : MESH_GENERIC_ON_OFF_STATE_OFF;
 
 	  LOG_INFO("req.on_off %d", req.on_off );
 
@@ -681,7 +742,7 @@ void publish_button_state(int retrans)
 	  }
 
 
-	  if (switch_pos == MESH_GENERIC_ON_OFF_STATE_ON)
+	  if (button_state == MESH_GENERIC_ON_OFF_STATE_ON)
 	  {
 
 
@@ -689,7 +750,7 @@ void publish_button_state(int retrans)
 		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Pressed");
 #endif
 	  }
-	  else if ( switch_pos == MESH_GENERIC_ON_OFF_STATE_OFF)
+	  if ( button_state == MESH_GENERIC_ON_OFF_STATE_OFF)
 	  {
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Released");
@@ -698,7 +759,7 @@ void publish_button_state(int retrans)
 
 	  resp = mesh_lib_generic_client_publish(
 	    MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID,
-	    _elem_index,
+	    0,
 	    trid,
 	    &req,
 	    transtime,   // transition time in ms
@@ -806,10 +867,10 @@ static void client_request_cb(uint16_t model_id,
 #endif
 	}
 
-	else if ( request->on_off == MESH_GENERIC_ON_OFF_STATE_ON) //button released
+	else if ( request->on_off == MESH_GENERIC_ON_OFF_STATE_OFF) //button released
 	{
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-  	  displayPrintf(DISPLAY_ROW_ACTION,"Button Pressed");
+  	  displayPrintf(DISPLAY_ROW_ACTION,"Button Released");
 #endif
 	}
 	onoff_update_and_publish(element_index, 0);
@@ -837,7 +898,7 @@ static errorcode_t onoff_update_and_publish(uint16_t element_index,
     e = mesh_lib_generic_server_publish(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
                                         element_index,
                                         mesh_generic_state_on_off);
-    LOG_INFO("in onoff_update_and_publish: success");
+    LOG_INFO("in onoff_update_and_publish: success %d",e);
   }
 
   return e;

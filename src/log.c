@@ -9,6 +9,7 @@
 #include "log.h"
 #include <stdbool.h>
 
+
 #if INCLUDE_LOGGING
 /**
  * @return a timestamp value for the logger, typically based on a free running timer.
@@ -16,8 +17,9 @@
  */
 uint32_t loggerGetTimestamp(void)
 {
+	uint32_t val = msec;
 	//return timerGetRunTimeMilliseconds();
-	return 0;
+	return val;
 }
 
 /**
@@ -33,6 +35,7 @@ void logInit(void)
 	 */
 	RETARGET_SerialCrLf(true);
 	LOG_INFO("Initialized Logging");
+	gecko_cmd_hardware_set_soft_timer(328, LOG_TIMER, 0);
 }
 
 /**

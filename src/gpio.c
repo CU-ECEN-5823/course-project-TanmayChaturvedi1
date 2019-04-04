@@ -84,24 +84,18 @@ void gpioint(uint8_t pin)
 	}
 }
 
+void gpioEnableDisplay()
+{
+	GPIO_PinOutSet(LCD_PORT_DISP_SEL, LCD_PIN_DISP_SEL);
 
-//
-//void GPIO_EVEN_IRQHandler(void)
-//{
-//	LOG_INFO("in GPIO Interrupts IRQ\n");
-//	//uint32_t interrupt = GPIO->IFC;
-//	uint32_t interrupt = GPIO_IntGet();
-//	GPIO_IntClear(interrupt);
-///*
-// * I think it's not necessary to define a critical section
-// * as only 1 GPIO interrupt.
-// */
-////	CORE_DECLARE_IRQ_STATE;
-////	CORE_ENTER_CRITICAL( );
-//	ext_sig_event |= PB0_STATE;
-//	gecko_external_signal( ext_sig_event );
-//
-////	CORE_EXIT_CRITICAL( );
-//	LOG_INFO("eXIT GPIO Interrupts IRQ\n");
-//
-//}
+}
+
+void gpioSetDisplayExtcomin(bool high)
+{
+	if (high == true)
+	{
+		GPIO_PinOutSet(LCD_PORT_EXTCOMIN, LCD_PIN_EXTCOMIN);
+	}
+	else
+		GPIO_PinOutClear(LCD_PORT_EXTCOMIN, LCD_PIN_EXTCOMIN);
+}
