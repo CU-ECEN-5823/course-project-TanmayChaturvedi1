@@ -242,6 +242,7 @@ void gecko_main_init()
 #define TIMER_ID_NODE_CONFIGURED  30
 
 
+
 /* ***************************************************
  * FUNCTION PROTOTYPES
  *
@@ -250,6 +251,8 @@ void initiate_factory_reset(void);
 void set_device_name(bd_addr *pAddr);
 void publish_button_state(int retrans);
 static void init_models(void);
+void lpn_init(void);
+void lpn_deinit(void);
 static void client_request_cb(uint16_t model_id,
                           uint16_t element_index,
                           uint16_t client_addr,
@@ -284,13 +287,20 @@ static uint8 conn_handle = 0xFF;
 // For indexing elements of the node
 static uint16 _elem_index = 0xffff;
 
+// number of active Bluetooth connections
+static uint8 num_connections = 0;
+
+// Flag for indicating that lpn feature is active
+static uint8 lpn_active = 0;
+
+
 // transaction identifier
 static uint8 trid = 0;
 
 // current position of the switch
 volatile uint8 switch_pos = 0;
 
-/* For indexing elements of the node */
+// For indexing elements of the node
 static uint16 _primary_elem_index = 0xffff;
 
 #if DEVICE_IS_ONOFF_PUBLISHER
@@ -313,6 +323,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
   }
   switch (evt_id) {
     case gecko_evt_system_boot_id:
+    	LOG_INFO("gecko_evt_system_boot_id\n");
     // Initialize Mesh stack in Node operation mode, wait for initialized event and
 	//Check if either PB0 or PB1 is pressed at Startup
 	//Should initiate factory reset at Startup
@@ -332,6 +343,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 	else	//if no button press detected
 	{
+		LOG_INFO("no button press detected\n");
 		//Get BT address
 		struct gecko_msg_system_get_bt_address_rsp_t *bt_addr = gecko_cmd_system_get_bt_address();
 
@@ -355,9 +367,25 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		break;
 
     	case UPDATE_DISPLAY:
-    		LOG_INFO("display update");
+    		//LOG_INFO("display update");
     		displayUpdate();
     		break;
+
+    	case TIMER_ID_NODE_CONFIGURED:
+    		LOG_INFO("Post Provision Timer Expired, Initiate LPN");
+    		lpn_init();
+    		break;
+
+
+        case TIMER_ID_FRIEND_FIND:
+        {
+          LOG_INFO("trying to find friend...\r\n");
+          ret_status = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+
+          if (ret_status != 0) {
+            LOG_INFO("ret.code %x\r\n", ret_status);
+          }
+        }
 
     	}
     	break;
@@ -371,6 +399,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	{
         // The Node is now initialized, start unprovisioned Beaconing using PB-ADV and PB-GATT Bearers
     		gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
+    		LOG_INFO("Beaconing started, and initialized\n");
     	}
 
     	//if Provisioned
@@ -379,14 +408,18 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		_elem_index = 0;
     	// Initialize generic client models
     		ret_status = gecko_cmd_mesh_generic_client_init()->result;
+    		LOG_INFO("Provisioned already, initialize generic client models\n");
     	      if (ret_status)
     	      {
     	            LOG_INFO("mesh_generic_client_init failed, code 0x%x\r\n", ret_status);
     	      }
     	// Set GPIO Interrupt
-    	      gpio_set_interrupt();
+
+    	      LOG_INFO("Interrupt Enabled\n");
     	// Initialize mesh lib, up to 8 models
     	      mesh_lib_init(malloc, free, 8);
+    	      gpio_set_interrupt();
+    	      lpn_init();
     	}
 
     	break;
@@ -401,6 +434,11 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 		displayPrintf(DISPLAY_ROW_ACTION,"Provisioned");
 #endif
+	// try to initialize lpn after 30 seconds, if no configuration messages come
+//		ret_status = gecko_cmd_hardware_set_soft_timer((30000),
+//												 TIMER_ID_NODE_CONFIGURED,
+//												 1)->result;
+
 		break;
 
     case gecko_evt_mesh_node_provisioning_failed_id:
@@ -427,6 +465,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 		displayPrintf(DISPLAY_ROW_CONNECTION, "");
 #endif
+		LOG_INFO("Connection Closed\n");
+
       break;
 
 
@@ -440,7 +480,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
 #endif
-
+		LOG_INFO("Publish : Button Released\n");
 		publish_button_state(MESH_GENERIC_ON_OFF_STATE_OFF);
 		break;
 		}
@@ -452,14 +492,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 	displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
 #endif
 		publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
+		LOG_INFO("Publish : Button Pressed\n");
 		break;
 		}
 
 	}
 	break;
-
-
-
 
 
     case gecko_evt_gatt_server_user_write_request_id:
@@ -476,6 +514,45 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_le_connection_close(evt->data.evt_gatt_server_user_write_request.connection);
       }
       break;
+
+
+    case gecko_evt_mesh_lpn_friendship_established_id:
+    	LOG_INFO("friendship established\r\n");
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+	displayPrintf(DISPLAY_ROW_CONNECTION, "LPN with friend");
+#endif
+         break;
+
+       case gecko_evt_mesh_lpn_friendship_failed_id:
+         LOG_INFO("friendship failed\r\n");
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+	displayPrintf(DISPLAY_ROW_CONNECTION, "No Friend");
+#endif        // try again in 2 seconds
+
+		ret_status = gecko_cmd_hardware_set_soft_timer((2000),
+                                                    TIMER_ID_FRIEND_FIND,
+                                                    1)->result;
+         if (ret_status)
+         {
+           LOG_INFO("timer failure?!  %x\r\n", ret_status);
+         }
+         break;
+
+       case gecko_evt_mesh_lpn_friendship_terminated_id:
+         printf("friendship terminated\r\n");
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+	displayPrintf(DISPLAY_ROW_CONNECTION, "");
+#endif
+	if (num_connections == 0) {
+           // try again in 2 seconds
+           ret_status = gecko_cmd_hardware_set_soft_timer(2000,
+                                                      TIMER_ID_FRIEND_FIND,
+                                                      1)->result;
+           if (ret_status) {
+             LOG_INFO("timer failure?!  %x\r\n", ret_status);
+           }
+         }
+         break;
 
 
     case gecko_evt_mesh_node_reset_id:
@@ -791,6 +868,92 @@ struct reg {
     } client;
   };
 };
+
+/***************************************************************************//**
+ * Initialize LPN functionality with configuration and friendship establishment.
+ * Source: Silicon Labs Mesh Example
+ ******************************************************************************/
+void lpn_init(void)
+{
+  uint16 result;
+  LOG_INFO("Establishing LPN\n");
+  // Do not initialize LPN if lpn is currently active
+  // or any GATT connection is opened
+  if (lpn_active || num_connections)
+  {
+    return;
+  }
+
+  // Initialize LPN functionality.
+  result = gecko_cmd_mesh_lpn_init()->result;
+  if (result)
+  {
+	LOG_INFO("LPN init failed (0x%x)\r\n", result);
+    return;
+  }
+
+  lpn_active = 1;
+  LOG_INFO("LPN initialized\r\n");
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_CONNECTION,"LPN Init done");
+#endif
+
+  // Configure the lpn with following parameters:
+  // - Minimum friend queue length = 2
+  // - Poll timeout = 5 seconds
+  result = gecko_cmd_mesh_lpn_configure(2, 5 * 1000)->result;
+  if (result)
+  {
+    LOG_INFO("LPN conf failed (0x%x)\r\n", result);
+    return;
+  }
+
+  LOG_INFO("trying to find friend...\r\n");
+  result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+
+  if (result != 0)
+  {
+	  LOG_INFO("ret.code %x\r\n", result);
+  }
+}
+
+
+
+/***************************************************************************//**
+ * Deinitialize LPN functionality.
+ * Source: Silicon Labs Mesh Example
+ ******************************************************************************/
+void lpn_deinit(void)
+{
+  uint16 result;
+
+  if (!lpn_active)
+  {
+    return; // lpn feature is currently inactive
+  }
+
+  result = gecko_cmd_hardware_set_soft_timer(0, // cancel friend finding timer
+                                             TIMER_ID_FRIEND_FIND,
+                                             1)->result;
+
+  // Terminate friendship if exist
+  result = gecko_cmd_mesh_lpn_terminate_friendship()->result;
+  if (result)
+  {
+    LOG_INFO("Friendship termination failed (0x%x)\r\n", result);
+  }
+  // turn off lpn feature
+  result = gecko_cmd_mesh_lpn_deinit()->result;
+  if (result)
+  {
+    LOG_INFO("LPN deinit failed (0x%x)\r\n", result);
+  }
+  lpn_active = 0;
+  LOG_INFO("LPN deinitialized\r\n");
+#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+		displayPrintf(DISPLAY_ROW_CONNECTION,"LPN De-Init done");
+#endif
+}
 
 
 #if DEVICE_IS_ONOFF_PUBLISHER
