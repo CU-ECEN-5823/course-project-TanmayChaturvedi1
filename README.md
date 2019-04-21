@@ -24,7 +24,7 @@ Model
 * [Group Project Document Folder Link](https://drive.google.com/drive/u/0/folders/19pP2BnPFkOunKWceiNoMzz06ycwfbmVY)
 * [Individual Project Document Folder Link](https://drive.google.com/drive/u/0/folders/13ImMufIetzgHsnXX1L5a2Kr49Aut80EE) 
 
-## Bluetooth Mesh Final Project Update 1 [April 20, 2019]
+## Bluetooth Mesh Final Project Update 2 [April 20, 2019]
 
 * In gecko_main.c, routines for adding data to / retrieving data from persistent storage are added
 * In the project, i2c.c and i2c.h has the required routines for interfacing APDS 9301 sensor
