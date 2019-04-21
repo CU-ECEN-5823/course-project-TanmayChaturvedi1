@@ -403,8 +403,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		break;
 
     	case UPDATE_DISPLAY:
-    		//LOG_INFO("display update");
-    		//displayUpdate();
+    		LOG_INFO("display update");
+    		displayUpdate();
 
     		break;
 
@@ -460,7 +460,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	      mesh_lib_init(malloc, free, 8);
 //    	      gpio_set_interrupt();
     	      lpn_init();
-    	      gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+    	      //gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
     	}
 
     	break;
@@ -511,35 +511,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       break;
 
 
-    case gecko_evt_system_external_signal_id:
-    	if(evt->data.evt_system_external_signal.extsignals & PB0_STATE)
-    		{
-    			ext_sig_event &= ~(PB0_STATE);
-
-    			if (GPIO_PinInGet(gpioPortF,6))
-    			{
-    	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-    		displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
-    	#endif
-    			LOG_INFO("Publish : Button Released");
-
-    			publish_button_state(MESH_GENERIC_ON_OFF_STATE_OFF);
-    			break;
-    			}
-
-    			if (GPIO_PinInGet(gpioPortF,6)==0)
-    			{
-    			//ext_sig_event &= ~(PB0_RELEASED);
-    	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-    		displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
-    	#endif
-    			publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
-    			LOG_INFO("Publish : Button Pressed");
-    			break;
-    			}
-
-    		}
-    		break;
+    case gecko_evt_system_external_signal_id:	//Deprecated, as of 20 April, as no external signal enabled for project
+    	break;
 
 
     case gecko_evt_gatt_server_user_write_request_id:
@@ -563,6 +536,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_CONNECTION, "LPN with friend");
 #endif
+		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+
          break;
 
        case gecko_evt_mesh_lpn_friendship_failed_id:
