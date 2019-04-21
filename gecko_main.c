@@ -59,6 +59,9 @@
 #include "src/mydisplay.h"
 #include "src/gpio.h"
 #include "src/log.h"
+#include "i2c.h"
+#include "gecko_main.h"
+
 
 /***********************************************************************************************//**
  * @addtogroup Application
@@ -92,6 +95,7 @@ static gecko_bluetooth_ll_priorities linklayer_priorities = GECKO_BLUETOOTH_PRIO
 // bluetooth stack configuration
 extern const struct bg_gattdb_def bg_gattdb_data;
 
+double lux_value = 0;
 // Flag for indicating DFU Reset must be performed
 uint8_t boot_to_dfu = 0;
 
@@ -188,6 +192,7 @@ void gecko_bgapi_classes_init_client_lpn(void)
 
 void gecko_main_init()
 
+
 {
   // Initialize device
   initMcu();
@@ -229,21 +234,6 @@ void gecko_main_init()
 
 }
 
-
-/* ***************************************************
- * MACROS (sourced from Silicon Labs Example)
- *
- * Timer handles defines.
- ****************************************************/
-#define TIMER_ID_RESTART          78
-#define TIMER_ID_FACTORY_RESET    77
-#define TIMER_ID_PROVISIONING     66
-#define TIMER_ID_RETRANS          10
-#define TIMER_ID_FRIEND_FIND      20
-#define TIMER_ID_NODE_CONFIGURED  30
-
-
-
 /* ***************************************************
  * FUNCTION PROTOTYPES
  *
@@ -251,6 +241,7 @@ void gecko_main_init()
 void initiate_factory_reset(void);
 void set_device_name(bd_addr *pAddr);
 void publish_button_state(int retrans);
+void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t model_identifier );
 static void init_models(void);
 void lpn_init(void);
 void lpn_deinit(void);
@@ -298,6 +289,8 @@ static uint8 lpn_active = 0;
 // transaction identifier
 static uint8 trid = 0;
 
+static uint8 trid1 = 0;
+
 // current position of the switch
 volatile uint8 switch_pos = 0;
 
@@ -325,7 +318,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
   switch (evt_id) {
     case gecko_evt_system_boot_id:
     	LOG_INFO("gecko_evt_system_boot_id");
-    // Initialize Mesh stack in Node operation mode, wait for initialized event and
+    //Initialize Mesh stack in Node operation mode, wait for initialized event and
 	//Check if either PB0 or PB1 is pressed at Startup
 	//Should initiate factory reset at Startup
 	if (GPIO_PinInGet(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN) == 0 || GPIO_PinInGet(BSP_BUTTON1_PORT, BSP_BUTTON1_PIN) == 0)
@@ -367,14 +360,42 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		msec += 10;
     		break;
 
+    	case LUX_SENSOR_DATA:
+    		lux_value = get_lux_sensor_values();
+    		LOG_INFO("Luxval = : %lf",lux_value);
+    		uint16_t new_lux_val = (uint16_t)(lux_value * 100);
+    		LOG_INFO("New Luxval = : %d",new_lux_val);
+    		publish_data(mesh_generic_state_level, lux_value*100, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
+    		LOG_INFO("Published: LEVEL_VAL ");
+    		if (new_lux_val >= 50000)
+			{
+    			publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_ON, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
+    			LOG_INFO("Published: ON ");
+			}
+    		else
+    		{
+    			publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_OFF, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
+    			LOG_INFO("Published: OFF ");
+    		}
+    		//mesh_generic_state_level
+    		//mesh_generic_request_on_off
+    		//MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID
+    		//MESH_GENERIC_LEVEL_CLIENT_MODEL_ID
+    		break;
+
     	case UPDATE_DISPLAY:
     		//LOG_INFO("display update");
-    		displayUpdate();
+    		//displayUpdate();
+
     		break;
 
     	case TIMER_ID_NODE_CONFIGURED:
     		LOG_INFO("Post Provision Timer Expired, Initiate LPN");
     		lpn_init();
+    		break;
+
+    	case I2C_INIT_TIMER_EXPIRE:
+    		 I2C_send_command(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_CONTROL_REG, I2C_FLAG_WRITE_WRITE , LUX_POWER_ON);	//Power On.
     		break;
 
 
@@ -421,6 +442,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	      mesh_lib_init(malloc, free, 8);
     	      gpio_set_interrupt();
     	      lpn_init();
+    	      gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
     	}
 
     	break;
@@ -472,33 +494,34 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 
     case gecko_evt_system_external_signal_id:
-	if(evt->data.evt_system_external_signal.extsignals & PB0_STATE)
-	{
-		ext_sig_event &= ~(PB0_STATE);
+    	if(evt->data.evt_system_external_signal.extsignals & PB0_STATE)
+    		{
+    			ext_sig_event &= ~(PB0_STATE);
 
-		if (GPIO_PinInGet(gpioPortF,6))
-		{
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-	displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
-#endif
-		LOG_INFO("Publish : Button Released");
-		publish_button_state(MESH_GENERIC_ON_OFF_STATE_OFF);
-		break;
-		}
+    			if (GPIO_PinInGet(gpioPortF,6))
+    			{
+    	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+    		displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
+    	#endif
+    			LOG_INFO("Publish : Button Released");
 
-		if (GPIO_PinInGet(gpioPortF,6)==0)
-		{
-		//ext_sig_event &= ~(PB0_RELEASED);
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-	displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
-#endif
-		publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
-		LOG_INFO("Publish : Button Pressed");
-		break;
-		}
+    			publish_button_state(MESH_GENERIC_ON_OFF_STATE_OFF);
+    			break;
+    			}
 
-	}
-	break;
+    			if (GPIO_PinInGet(gpioPortF,6)==0)
+    			{
+    			//ext_sig_event &= ~(PB0_RELEASED);
+    	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+    		displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
+    	#endif
+    			publish_button_state(MESH_GENERIC_ON_OFF_STATE_ON);
+    			LOG_INFO("Publish : Button Pressed");
+    			break;
+    			}
+
+    		}
+    		break;
 
 
     case gecko_evt_gatt_server_user_write_request_id:
@@ -800,6 +823,88 @@ void set_device_name(bd_addr *pAddr)
 }
 
 
+void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t model_identifier )
+{
+	 int retrans = 0;
+	 int retrans1 = 0;
+	 uint16 resp, resp1;
+	 uint16 delay, delay1;
+	 const uint32 transtime = 0; /* using zero transition time by default */
+	 const uint32 transtime1 = 0; /* using zero transition time by default */
+	 delay = 0;
+	 delay1 = 0;
+	 // increment transaction ID for each request, unless it's a retransmission
+	 if (retrans1 == 0) {
+	 		 trid++;
+	 	 }
+	 if (retrans1 == 0) {
+	 		 trid1++;
+	 	 }
+
+	 if (model_identifier == MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID )
+	 {
+		 LOG_INFO("In ON OFF CLIENT MODEL");
+		 struct mesh_generic_request req;
+		 req.kind = kind_type;
+		 req.on_off = data;
+		 LOG_INFO("req.on_off %d", req.on_off );
+		 if (data == MESH_GENERIC_ON_OFF_STATE_ON)
+			 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
+		 else if (data == MESH_GENERIC_ON_OFF_STATE_OFF)
+			 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
+		 resp = mesh_lib_generic_client_publish(
+				 model_identifier,
+				 0,
+				 trid,
+				 &req,
+				 transtime,   // transition time in ms
+				 delay,
+				 0     // flags
+		 );
+
+		 if (resp) {
+			 LOG_INFO("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp);
+		 } else {
+			 LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid, delay);
+		 }
+	 }
+
+	 if(model_identifier == MESH_GENERIC_LEVEL_CLIENT_MODEL_ID)
+	 {
+		 LOG_INFO("In LEVEL CLIENT MODEL");
+		 struct mesh_generic_state req1;
+		 req1.kind = kind_type;
+		 req1.level.level = data;
+		 LOG_INFO("req1.level.level %d", req1.level.level );
+		 char final_lux[30];
+		 sprintf(final_lux, "Lux = %f",data/100.0);
+		 displayPrintf(DISPLAY_ROW_TEMPVALUE,final_lux);
+
+		 resp1 = mesh_lib_generic_client_publish(
+				 model_identifier,
+				 0,
+				 trid1,
+				 &req1,
+				 transtime1,   // transition time in ms
+				 delay1,
+				 0     // flags
+		 );
+
+
+		 if (resp1) {
+			 LOG_INFO("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp1);
+		 } else {
+			 LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid1, delay1);
+		 }
+	 }
+
+	 else
+	 {
+		 //			  struct mesh_generic_state req;
+	 }
+}
+
+
 /*
  * Publishes the state of Button PB0 to the subscriber
  * @param	none
@@ -807,57 +912,52 @@ void set_device_name(bd_addr *pAddr)
  */
 void publish_button_state(int button_state)
 {
-	  int retrans = 0;
-	  uint16 resp;
-	  uint16 delay;
-//	  struct mesh_generic_request req;
-	  struct mesh_generic_state req;
-	  const uint32 transtime = 0; /* using zero transition time by default */
-	  delay = 0;
+	 int retrans = 0;
+		  uint16 resp;
+		  uint16 delay;
+		  struct mesh_generic_request req;
+		  const uint32 transtime = 0; /* using zero transition time by default */
+		  delay = 0;
+		  req.kind = mesh_generic_request_on_off;
+		  req.on_off = button_state ? MESH_GENERIC_ON_OFF_STATE_ON : MESH_GENERIC_ON_OFF_STATE_OFF;
 
-	  //**WORKING**//
-	  //**Used Generic Level Client Model**//
-	  req.kind = mesh_generic_state_level;
-	  req.level.level = 100;
+		  LOG_INFO("req.on_off %d", req.on_off );
 
-	  LOG_INFO(" req.level.level %d",  req.level.level);
-
-
-	  // increment transaction ID for each request, unless it's a retransmission
-	  if (retrans == 0) {
-	    trid++;
-	  }
+		  // increment transaction ID for each request, unless it's a retransmission
+		  if (retrans == 0) {
+		    trid++;
+		  }
 
 
-	  if (button_state == MESH_GENERIC_ON_OFF_STATE_ON)
-	  {
+		  if (button_state == MESH_GENERIC_ON_OFF_STATE_ON)
+		  {
 
 
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Pressed");
-#endif
-	  }
-	  if ( button_state == MESH_GENERIC_ON_OFF_STATE_OFF)
-	  {
-#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
-		displayPrintf(DISPLAY_ROW_TEMPVALUE,"Released");
-#endif
-	  }
+	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+			displayPrintf(DISPLAY_ROW_TEMPVALUE,"Pressed");
+	#endif
+		  }
+		  if ( button_state == MESH_GENERIC_ON_OFF_STATE_OFF)
+		  {
+	#if ECEN5823_INCLUDE_DISPLAY_SUPPORT
+			displayPrintf(DISPLAY_ROW_TEMPVALUE,"Released");
+	#endif
+		  }
 
-	  resp = mesh_lib_generic_client_publish(
-			  MESH_GENERIC_LEVEL_CLIENT_MODEL_ID,
-	    0,
-	    trid,
-	    &req,
-	    transtime,   // transition time in ms
-	    delay,
-	    0     // flags
-	    );
-	  if (resp) {
-	    LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x", resp);
-	  } else {
-	    LOG_INFO("request sent, trid = %u, delay = %d", trid, delay);
-	  }
+		  resp = mesh_lib_generic_client_publish(
+		    MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID,
+		    0,
+		    trid,
+		    &req,
+		    transtime,   // transition time in ms
+		    delay,
+		    0     // flags
+		    );
+		  if (resp) {
+		    LOG_INFO("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp);
+		  } else {
+		    LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid, delay);
+		  }
 }
 
 
