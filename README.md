@@ -23,3 +23,14 @@ timeout of 5seconds and initiate friendship request using gecko_cmd_mesh_lpn_est
 Model
 * [Group Project Document Folder Link](https://drive.google.com/drive/u/0/folders/19pP2BnPFkOunKWceiNoMzz06ycwfbmVY)
 * [Individual Project Document Folder Link](https://drive.google.com/drive/u/0/folders/13ImMufIetzgHsnXX1L5a2Kr49Aut80EE) 
+
+## Bluetooth Mesh Final Project Update 1 [April 20, 2019]
+
+* In gecko_main.c, routines for adding data to / retrieving data from persistent storage are added
+* In the project, i2c.c and i2c.h has the required routines for interfacing APDS 9301 sensor
+* CLIENT_LEVEL_MODEL AND GENERIC_CLIENT_ON_OFF models have been added and accordingly the .isc file is modified to add these models
+* In gecko_main.c, publish_data() is added which takes arguments related to the respective models and publishes the data to the friend node
+* As of April 20, my node is able to publish data from the above mentioned 2 models to the friend node and friend node is able to receive the data properly
+* [Group Project Document Folder Link](https://drive.google.com/drive/u/0/folders/19pP2BnPFkOunKWceiNoMzz06ycwfbmVY)
+* [Individual Project Document Folder Link](https://drive.google.com/drive/u/0/folders/13ImMufIetzgHsnXX1L5a2Kr49Aut80EE)
+

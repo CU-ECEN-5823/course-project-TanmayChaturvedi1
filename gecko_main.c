@@ -61,6 +61,7 @@
 #include "src/log.h"
 #include "i2c.h"
 #include "gecko_main.h"
+#include "src/gecko_ble_errors.h"
 
 
 /***********************************************************************************************//**
@@ -345,8 +346,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		struct gecko_msg_system_get_bt_address_rsp_t *bt_addr = gecko_cmd_system_get_bt_address();
 
 		set_device_name(&bt_addr->address);
-		ret_status = gecko_cmd_mesh_node_init()->result;
-
+		//ret_status = gecko_cmd_mesh_node_init()->result;
+		BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_node_init());
 		uint16_t old_lux_val = gecko_retrieve_persistent_data(LUX_KEY);
 		char old_val[20];
 		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/100.0);
@@ -421,11 +422,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         case TIMER_ID_FRIEND_FIND:
         {
           LOG_INFO("trying to find friend...");
-          ret_status = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
-
-          if (ret_status != 0) {
-            LOG_INFO("ret.code %x", ret_status);
-          }
+          BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_establish_friendship(0));
+//          ret_status = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+//
+//          if (ret_status != 0) {
+//            LOG_INFO("ret.code %x", ret_status);
+//          }
         }
 
     	}
@@ -448,12 +450,13 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	{
     		_elem_index = 0;
     	// Initialize generic client models
-    		ret_status = gecko_cmd_mesh_generic_client_init()->result;
+    		//ret_status = gecko_cmd_mesh_generic_client_init()->result;
+    		BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_generic_client_init());
     		LOG_INFO("Provisioned already, initialize generic client models");
-    	      if (ret_status)
-    	      {
-    	            LOG_INFO("mesh_generic_client_init failed, code 0x%x", ret_status);
-    	      }
+//    	      if (ret_status)
+//    	      {
+//    	            LOG_INFO("mesh_generic_client_init failed, code 0x%x", ret_status);
+//    	      }
     	// Set GPIO Interrupt
     	      LOG_INFO("Interrupt Enabled");
     	// Initialize mesh lib, up to 8 models
@@ -546,13 +549,14 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 	displayPrintf(DISPLAY_ROW_CONNECTION, "No Friend");
 #endif        // try again in 2 seconds
 
-		ret_status = gecko_cmd_hardware_set_soft_timer((2000),
-                                                    TIMER_ID_FRIEND_FIND,
-                                                    1)->result;
-         if (ret_status)
-         {
-           LOG_INFO("timer failure?!  %x", ret_status);
-         }
+//		ret_status = gecko_cmd_hardware_set_soft_timer((2000),
+//                                                    TIMER_ID_FRIEND_FIND,
+//                                                    1)->result;
+		BTSTACK_CHECK_RESPONSE(gecko_cmd_hardware_set_soft_timer(2000, TIMER_ID_FRIEND_FIND, 1));
+//         if (ret_status)
+//         {
+//           LOG_INFO("timer failure?!  %x", ret_status);
+//         }
          break;
 
        case gecko_evt_mesh_lpn_friendship_terminated_id:
@@ -562,19 +566,20 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #endif
 	if (num_connections == 0) {
            // try again in 2 seconds
-           ret_status = gecko_cmd_hardware_set_soft_timer(2000,
-                                                      TIMER_ID_FRIEND_FIND,
-                                                      1)->result;
-           if (ret_status) {
-             LOG_INFO("timer failure?!  %x", ret_status);
-           }
+		BTSTACK_CHECK_RESPONSE(gecko_cmd_hardware_set_soft_timer(2000, TIMER_ID_FRIEND_FIND, 1));
+//           ret_status = gecko_cmd_hardware_set_soft_timer(2000,
+//                                                      TIMER_ID_FRIEND_FIND,
+//                                                      1)->result;
+//           if (ret_status) {
+//             LOG_INFO("timer failure?!  %x", ret_status);
+//           }
          }
          break;
 
 
     case gecko_evt_mesh_node_reset_id:
-    	gecko_cmd_flash_ps_erase_all();
-    	gecko_cmd_hardware_set_soft_timer( 2 * 32768, TIMER_ID_FACTORY_RESET, 1);
+    	BTSTACK_CHECK_RESPONSE(gecko_cmd_flash_ps_erase_all());
+    	BTSTACK_CHECK_RESPONSE(gecko_cmd_hardware_set_soft_timer( 2 * 32768, TIMER_ID_FACTORY_RESET, 1));
     	break;
 
     default:
@@ -598,9 +603,9 @@ void initiate_factory_reset(void)
 	/*Need to acquire previous LE connection handle*/
 
 	//Clear PS
-	gecko_cmd_flash_ps_erase_all();
+	BTSTACK_CHECK_RESPONSE(gecko_cmd_flash_ps_erase_all());
 	// reboot after a small delay
-	gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FACTORY_RESET, 1);
+	BTSTACK_CHECK_RESPONSE(gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FACTORY_RESET, 1));
 }
 
 
@@ -626,10 +631,11 @@ void set_device_name(bd_addr *pAddr)
 #endif
 
   // write device name to the GATT database
-  res = gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name)->result;
-  if (res) {
-   LOG_INFO("gecko_cmd_gatt_server_write_attribute_value() failed, code %x\r\n", res);
-  }
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name));
+//  res = gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name)->result;
+//  if (res) {
+//   LOG_INFO("gecko_cmd_gatt_server_write_attribute_value() failed, code %x\r\n", res);
+//  }
 
   // show device name on the LCD
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
@@ -685,9 +691,9 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 		 );
 
 		 if (resp) {
-			 LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp);
+			 LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x", resp);
 		 } else {
-			 LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid, delay);
+			 LOG_INFO("request sent, trid = %u, delay = %d", trid, delay);
 		 }
 	 }
 
@@ -714,9 +720,9 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 
 
 		 if (resp1) {
-			 LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp1);
+			 LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x", resp1);
 		 } else {
-			 LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid1, delay1);
+			 LOG_INFO("request sent, trid = %u, delay = %d", trid1, delay1);
 		 }
 	 }
 
@@ -775,9 +781,9 @@ void publish_button_state(int button_state)
 		    0     // flags
 		    );
 		  if (resp) {
-		    LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x\r\n", resp);
+		    LOG_ERROR("gecko_cmd_mesh_generic_client_publish failed,code %x", resp);
 		  } else {
-		    LOG_INFO("request sent, trid = %u, delay = %d\r\n", trid, delay);
+		    LOG_INFO("request sent, trid = %u, delay = %d", trid, delay);
 		  }
 }
 
@@ -812,12 +818,13 @@ void lpn_init(void)
   }
 
   // Initialize LPN functionality.
-  result = gecko_cmd_mesh_lpn_init()->result;
-  if (result)
-  {
-	LOG_INFO("LPN init failed (0x%x)", result);
-    return;
-  }
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_init());
+//  result = gecko_cmd_mesh_lpn_init()->result;
+//  if (result)
+//  {
+//	LOG_INFO("LPN init failed (0x%x)", result);
+//    return;
+//  }
 
   lpn_active = 1;
   LOG_INFO("LPN initialized");
@@ -828,20 +835,22 @@ void lpn_init(void)
   // Configure the lpn with following parameters:
   // - Minimum friend queue length = 2
   // - Poll timeout = 5 seconds
-  result = gecko_cmd_mesh_lpn_configure(2, 5 * 1000)->result;
-  if (result)
-  {
-    LOG_INFO("LPN conf failed (0x%x)", result);
-    return;
-  }
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_configure(2, 5 * 1000));
+//  result = gecko_cmd_mesh_lpn_configure(2, 5 * 1000)->result;
+//  if (result)
+//  {
+//    LOG_INFO("LPN conf failed (0x%x)", result);
+//    return;
+//  }
 
   LOG_INFO("trying to find friend...");
-  result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
-
-  if (result != 0)
-  {
-	  LOG_INFO("ret.code %x", result);
-  }
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_establish_friendship(0));
+//  result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+//
+//  if (result != 0)
+//  {
+//	  LOG_INFO("ret.code %x", result);
+//  }
 }
 
 
@@ -859,22 +868,29 @@ void lpn_deinit(void)
     return; // lpn feature is currently inactive
   }
 
-  result = gecko_cmd_hardware_set_soft_timer(0, // cancel friend finding timer
-                                             TIMER_ID_FRIEND_FIND,
-                                             1)->result;
+//  result = gecko_cmd_hardware_set_soft_timer(0, // cancel friend finding timer
+//                                             TIMER_ID_FRIEND_FIND,
+//                                             1)->result;
+//
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_hardware_set_soft_timer(0, TIMER_ID_FRIEND_FIND, 1));
 
   // Terminate friendship if exist
-  result = gecko_cmd_mesh_lpn_terminate_friendship()->result;
-  if (result)
-  {
-    LOG_INFO("Friendship termination failed (0x%x)", result);
-  }
+
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_terminate_friendship());
+
+//  result = gecko_cmd_mesh_lpn_terminate_friendship()->result;
+//  if (result)
+//  {
+//    LOG_INFO("Friendship termination failed (0x%x)", result);
+//  }
+
+  BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_lpn_deinit());
   // turn off lpn feature
-  result = gecko_cmd_mesh_lpn_deinit()->result;
-  if (result)
-  {
-    LOG_INFO("LPN deinit failed (0x%x)", result);
-  }
+//  result = gecko_cmd_mesh_lpn_deinit()->result;
+//  if (result)
+//  {
+//    LOG_INFO("LPN deinit failed (0x%x)", result);
+//  }
   lpn_active = 0;
   LOG_INFO("LPN deinitialized");
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
@@ -893,13 +909,14 @@ void gecko_store_persistent_data(uint16_t storage_key, uint16_t data)
 {
 	int resp;
 	uint8_t *ptr_data = &data;
-	resp = gecko_cmd_flash_ps_save(storage_key, sizeof(data), ptr_data)->result;
-
-	if (resp) {
-		LOG_ERROR("gecko_store_persistent_data failed,code %x", resp);
-	} else {
-		LOG_INFO("Data stored in persistent memory");
-	}
+	BTSTACK_CHECK_RESPONSE(gecko_cmd_flash_ps_save(storage_key, sizeof(data), ptr_data));
+//	resp = gecko_cmd_flash_ps_save(storage_key, sizeof(data), ptr_data)->result;
+//
+//	if (resp) {
+//		LOG_ERROR("gecko_store_persistent_data failed,code %x", resp);
+//	} else {
+//		LOG_INFO("Data stored in persistent memory");
+//	}
 }
 
 /**
