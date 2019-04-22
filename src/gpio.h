@@ -28,4 +28,8 @@ void gpioSetDisplayExtcomin(bool high);
 #define	PB0_PRESSED	(uint8_t)(0x01)
 #define	PB0_RELEASED	(uint8_t)(0x00)
 
+#define	PB1_STATE	(uint32_t)(0x010)
+#define	PB1_PRESSED	(uint8_t)(0x02)
+#define	PB1_RELEASED	(uint8_t)(0x03)
+
 #endif /* SRC_GPIO_H_ */

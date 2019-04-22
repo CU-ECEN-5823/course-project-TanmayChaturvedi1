@@ -27,6 +27,10 @@ void gpioInit()
 	GPIO_PinModeSet(LED1_port, LED1_pin, gpioModePushPull, false);
 	GPIO_PinModeSet(gpioPortF,6,gpioModePushPull, 1);
 	GPIO_PinModeSet(gpioPortF,7,gpioModePushPull, 1);
+	GPIO_PinModeSet(gpioPortC,10,gpioModePushPull, 0);
+	GPIO_PinModeSet(gpioPortC,11,gpioModePushPull, 0);
+
+
 }
 
 void gpioLed0SetOn()
@@ -51,12 +55,21 @@ void gpio_set_interrupt(void)
 {
 	NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
 	NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+//	NVIC_ClearPendingIRQ(GPIO_ODD_IRQn);
+//	NVIC_EnableIRQ(GPIO_ODD_IRQn);
 
-	/* configure interrupt for PB0 and PB1, both falling and rising edges */
+	/* configure interrupt for PB0, both falling and rising edges */
 	GPIO_ExtIntConfig(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN, BSP_BUTTON0_PIN, true, true, true);
+
+//	/* configure interrupt for PB1, both falling and rising edges */
+//	GPIO_ExtIntConfig(BSP_BUTTON1_PORT, BSP_BUTTON1_PIN, BSP_BUTTON1_PIN, true, true, true);
 
 	/* register the callback function that is invoked when interrupt occurs */
 	GPIOINT_CallbackRegister(BSP_BUTTON0_PIN, gpioint);
+
+//	/* register the callback function that is invoked when interrupt occurs */
+//	GPIOINT_CallbackRegister(BSP_BUTTON1_PIN, gpioint);
+
 
 }
 
@@ -82,6 +95,13 @@ void gpioint(uint8_t pin)
 		ext_sig_event |= PB0_STATE;
 		gecko_external_signal(ext_sig_event);
 	}
+
+	else if (pin == BSP_BUTTON0_PIN)
+	{
+		ext_sig_event |= PB1_STATE;
+		gecko_external_signal(ext_sig_event);
+	}
+
 }
 
 void gpioEnableDisplay()

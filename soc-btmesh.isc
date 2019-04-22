@@ -1,5 +1,5 @@
 #ISD afv6
-# Simplicity Studio version: 5.2.2.201902221249-1438
+# Simplicity Studio version: 5.2.2.201903181400-1443
 
 # Application configuration
 stackId: com.silabs.sdk.stack.btmesh
@@ -118,15 +118,21 @@ appPlugin: slot-manager=false
       \{
         "Name": "Primary Element",
         "Loc": "0x0000",
-        "NumS": "3",
+        "NumS": "6",
         "NumV": "0",
         "SIG Models": [
           "0x0000",
           "Configuration Server",
+          "0x1010",
+          "Generic Location Client",
+          "0x1305",
+          "Light CTL Client",
+          "0x1003",
+          "Generic Level Client",
+          "0x1302",
+          "Light Lightness Client",
           "0x1001",
-          "Generic OnOff Client",
-          "0x1000",
-          "Generic OnOff Server"]
+          "Generic OnOff Client"]
         ,
         "Vendor Models": [
           ]
@@ -134,7 +140,7 @@ appPlugin: slot-manager=false
   \},
   "Memory configuration": \{
     "MAX_ELEMENTS": "1",
-    "MAX_MODELS": "3",
+    "MAX_MODELS": "6",
     "MAX_APP_BINDS": "4",
     "MAX_SUBSCRIPTIONS": "4",
     "MAX_NETKEYS": "4",

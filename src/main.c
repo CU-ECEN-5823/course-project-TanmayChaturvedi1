@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "i2c.h"
 #include "src/mydisplay.h"
 #include "src/gpio.h"
-
-
+#include "gecko_main.h"
 
 extern void gecko_main_init();
 bool mesh_bgapi_listener(struct gecko_cmd_packet *evt);
@@ -26,8 +26,17 @@ int main(void)
   gecko_main_init();
 
   logInit();
-  displayInit();
+
   gpioInit();
+
+  displayInit();
+
+  //GPIO_PinModeSet( gpioPortD, 15, gpioModePushPull, 1 );
+    I2C_init();
+    //for lux sensor
+    I2C_send_command(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_CONTROL_REG, I2C_FLAG_WRITE_WRITE , LUX_POWER_ON);	//Power On.
+   // I2C_read_byte(LUX_SENSOR_ADDR,LUX_COMMAND_BIT | LUX_CONTROL_REG , I2C_FLAG_WRITE_READ);
+extern double lux_value;
   /* Infinite loop */
   while (1) {
 	struct gecko_cmd_packet *evt = gecko_wait_event();
