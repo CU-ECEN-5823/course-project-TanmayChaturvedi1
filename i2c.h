@@ -9,6 +9,8 @@
 
 #include "em_i2c.h"
 #include <i2cspm.h>
+#include "stdbool.h"
+#include "em_core.h"
 
 /*Function Prototypes*/
 void I2C_Data_Transfer(void);
@@ -35,6 +37,9 @@ uint8_t	data_rx[2];
 uint8_t data_rx_1;
 uint16_t data_buffer;
 uint16_t temp_Celcius;
+
+double ch0_val, ch1_val;
+
 
 I2C_TransferSeq_TypeDef  seq_tx, seq_rx;
 

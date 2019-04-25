@@ -62,6 +62,8 @@
 #include "i2c.h"
 #include "gecko_main.h"
 #include "src/gecko_ble_errors.h"
+#include "src/event_scheduler.h"
+
 
 
 /***********************************************************************************************//**
@@ -234,39 +236,7 @@ void gecko_main_init()
 
 }
 
-/* ***************************************************
- * FUNCTION PROTOTYPES
- *
- ****************************************************/
-void initiate_factory_reset(void);
-void set_device_name(bd_addr *pAddr);
-void publish_button_state(int retrans);
-void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t model_identifier );
-static void init_models(void);
-void lpn_init(void);
-void lpn_deinit(void);
-static void client_request_cb(uint16_t model_id,
-                          uint16_t element_index,
-                          uint16_t client_addr,
-                          uint16_t server_addr,
-                          uint16_t appkey_index,
-                          const struct mesh_generic_request *request,
-                          uint32_t transition_ms,
-                          uint16_t delay_ms,
-                          uint8_t request_flags);
 
-void mesh_lib_generic_server_event_handler(struct gecko_cmd_packet *evt);
-static errorcode_t onoff_update_and_publish(uint16_t element_index,
-                                            uint32_t remaining_ms);
-static void state_changed_cb(uint16_t model_id,
-                         uint16_t element_index,
-                         const struct mesh_generic_state *current,
-                         const struct mesh_generic_state *target,
-                         uint32_t remaining_ms);
-
-static errorcode_t onoff_update(uint16_t element_index, uint32_t remaining_ms);
-uint16_t gecko_retrieve_persistent_data(uint16_t storage_key);
-void gecko_store_persistent_data(uint16_t storage_key, uint16_t data);
 
 
 
@@ -299,7 +269,7 @@ volatile uint8 switch_pos = 0;
 static uint16 _primary_elem_index = 0xffff;
 
 // For storing max data in PS
-static uint16_t max_lux_val = 0;
+uint16_t max_lux_val = 0;
 
 #if DEVICE_IS_ONOFF_PUBLISHER
 
@@ -351,7 +321,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		uint16_t old_lux_val = gecko_retrieve_persistent_data(LUX_KEY);
 		char old_val[20];
 		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/100.0);
-		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);;
+		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);
+		event_name.EVENT_INITIATE_STATE_MACHINE = true;
+		    		event_name.EVENT_NONE = false;
+		    		acquire_lux_data(START_LUX_STATE_MACHINE);
+
+		//gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,1 );
 		}
 
       break;
@@ -371,41 +346,16 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		break;
 
     	case LUX_SENSOR_DATA:
-    		lux_value = get_lux_sensor_values();
-    		LOG_INFO("Luxval = : %lf",lux_value);
-    		uint16_t new_lux_val = (uint16_t)(lux_value * 100);
-    		LOG_INFO("New Luxval = : %d",new_lux_val);
+    		//lux_value = get_lux_sensor_values();
+    		event_name.EVENT_INITIATE_STATE_MACHINE = true;
+    		event_name.EVENT_NONE = false;
+    		acquire_lux_data(START_LUX_STATE_MACHINE);
 
-    		if (new_lux_val >= max_lux_val)
-    		{
-    			max_lux_val = new_lux_val;
-    			gecko_store_persistent_data(LUX_KEY, new_lux_val);
-    			char max_val[20];
-    			sprintf(max_val, "Lux Max: %f",(float)(max_lux_val)/100.0);
-    			displayPrintf(DISPLAY_ROW_PASSKEY, max_val);
-    		}
-
-    		publish_data(mesh_generic_state_level, lux_value*100, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
-    		LOG_INFO("Published: LEVEL_VAL ");
-    		if (new_lux_val >= 25000)
-			{
-    			publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_ON, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
-    			LOG_INFO("Published: ON ");
-			}
-    		else
-    		{
-    			publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_OFF, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
-    			LOG_INFO("Published: OFF ");
-    		}
-    		//mesh_generic_state_level
-    		//mesh_generic_request_on_off
-    		//MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID
-    		//MESH_GENERIC_LEVEL_CLIENT_MODEL_ID
     		break;
 
     	case UPDATE_DISPLAY:
-    		LOG_INFO("display update");
-    		displayUpdate();
+//    		LOG_INFO("display update");
+//    		displayUpdate();
 
     		break;
 
@@ -514,7 +464,9 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
       break;
 
 
-    case gecko_evt_system_external_signal_id:	//Deprecated, as of 20 April, as no external signal enabled for project
+    case( gecko_evt_system_external_signal_id ):
+		LOG_INFO("Begin: gecko_evt_system_external_signal_id\n");
+    	acquire_lux_data(evt->data.evt_system_external_signal.extsignals);
     	break;
 
 
@@ -539,7 +491,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_CONNECTION, "LPN with friend");
 #endif
-		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+	//Need to revert and uncomment it
+//		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
 
          break;
 
@@ -941,3 +894,5 @@ uint16_t gecko_retrieve_persistent_data(uint16_t storage_key)
 	return retrieved_data;
 
 }
+
+

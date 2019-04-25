@@ -11,6 +11,7 @@
 #include "i2c.h"
 #include "src/log.h"
 #include <math.h>
+#include "src/event_scheduler.h"
 
 
 /*
@@ -28,7 +29,11 @@ void I2C_init(void)
 		i2cInit.sdaPin	=	11;
 		i2cInit.sdaPort	=	gpioPortC;
 	};
-	I2CSPM_Init(&i2cInit);
+
+	I2CSPM_Init(&i2cInit);	/*Does not include any blocking inside it*/
+	//I2C_IntEnable( I2C0, I2C_IF_RXDATAV | I2C_IF_TXC | I2C_IF_RXFULL );
+	I2C_IntEnable( I2C0, I2C_IEN_RXDATAV | I2C_IEN_TXC | I2C_IEN_RXFULL );
+	NVIC_EnableIRQ( I2C0_IRQn );
 }
 
 /*
@@ -50,23 +55,39 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 		seq_tx.addr	=	device_address << 1;
 		seq_tx.flags	=	flag;
 		seq_tx.buf[0].data = &data_tx;
+		//seq_tx.buf[1].data = &data_tx[1];
 		seq_tx.buf[0].len	=	2;
+		//seq_tx.buf[1].len	=	1;
 	};
 
+
+	I2C_TransferInit( I2C0, &seq_tx );
+/*I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
+if (return_type != i2cTransferInProgress)
+	{
+	LOG_ERROR("Failed");
+	}*/
+
+
+/*
 	I2C_TransferReturn_TypeDef Transfer_Ret_Status = I2CSPM_Transfer( I2C0, &seq_tx );
 
 	if ( Transfer_Ret_Status != i2cTransferDone )
 	{
-		/* log error, return error code of any unexpected situation */
+		 log error, return error code of any unexpected situation
 		LOG_ERROR("Failed in I2C Transfer with return status = %d", Transfer_Ret_Status);
 	}
 
 	else if ( Transfer_Ret_Status == i2cTransferDone )
 	{
-		/* Transfer done, continue */
+		 Transfer done, continue
 		LOG_INFO("DATA TRANSFERRED");
 	}
+*/
+
 }
+
+
 
 /*
  * Write a single byte on the I2C bus.
@@ -85,19 +106,21 @@ void I2C_send_byte(uint8_t device_address, uint8_t data_tx, uint8_t flag)
 		seq_tx.buf[0].len	=	1;
 	};
 
-	I2C_TransferReturn_TypeDef Transfer_Ret_Status = I2CSPM_Transfer( I2C0, &seq_tx );
+	I2C_TransferInit( I2C0, &seq_tx );
+
+/*	I2C_TransferReturn_TypeDef Transfer_Ret_Status = I2CSPM_Transfer( I2C0, &seq_tx );
 
 	if ( Transfer_Ret_Status != i2cTransferDone )
 	{
-		/* log error, return error code of any unexpected situation */
+		 log error, return error code of any unexpected situation
 		LOG_ERROR("Failed in I2C Transfer with return status = %d", Transfer_Ret_Status);
 	}
 
 	else if ( Transfer_Ret_Status == i2cTransferDone )
 	{
-		/* Transfer done, continue */
+		 Transfer done, continue
 		LOG_INFO("DATA TRANSFERRED");
-	}
+	}*/
 }
 
 /* Read word (2 bytes) from the I2C bus
@@ -115,18 +138,22 @@ double I2C_read_word(uint8_t device_address)
 		seq_rx.buf[0].len	=	2;
 	}
 
+	I2C_TransferInit( I2C0, &seq_rx );
+
+/*
 	I2C_TransferReturn_TypeDef Transfer_Ret_Status_RX = I2CSPM_Transfer( I2C0, &seq_rx );
 
 	if ( Transfer_Ret_Status_RX != i2cTransferDone )
 	{
-		/* log error, return error code of any unexpected situation */
+		 log error, return error code of any unexpected situation
 		LOG_ERROR("Failed in I2C Receive Sequence with return status", Transfer_Ret_Status_RX);
 	}
 	else if ( Transfer_Ret_Status_RX == i2cTransferDone )
 	{
-		/* I2C Receive done, continue  */
+		 I2C Receive done, continue
 		LOG_INFO("DATA RECEIVED");
 	}
+*/
 
 	/* 	Storing received data in a 16-bit variable */
 	data_buffer	=	data_rx[1];
@@ -155,13 +182,13 @@ double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag)
  */
 double get_lux_sensor_values(void)
 {
-	double ch0_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA0LOW_REG, I2C_FLAG_WRITE) ;
+//	double ch0_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA0LOW_REG, I2C_FLAG_WRITE) ;
 	char name[30];
-	sprintf(name, "new lux = %lf", ch0_val);
-	LOG_INFO("yo - %s", name);
-	double ch1_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA1LOW_REG, I2C_FLAG_WRITE) ;
+//	sprintf(name, "new lux = %lf", ch0_val);
+//	LOG_INFO("yo - %s", name);
+//	double ch1_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA1LOW_REG, I2C_FLAG_WRITE) ;
 	double ratio = ch1_val / ch0_val;
-
+	sprintf(name, "Ratio = %lf", ratio);
 	/* Refer Lux Sensor Datasheet for detailed explanation of below calculation*/
 	double luxVal = 0.0;
 	if ((ratio <= 0.5) && (ratio > 0.0))
@@ -184,4 +211,34 @@ double get_lux_sensor_values(void)
 		luxVal = 0.0;
 
 	return luxVal;
+}
+
+
+void I2C0_IRQHandler(void)
+{
+	LOG_INFO("in I2C IRQ");
+	I2C_TransferReturn_TypeDef I2C_transfer_return_status = I2C_Transfer( I2C0 );
+	CORE_DECLARE_IRQ_STATE;
+	if(I2C_transfer_return_status == i2cTransferDone)
+	{
+		//set event of i2c transfer complete
+		CORE_ENTER_CRITICAL();
+		event_name.EVENT_I2C_TRANSFER_COMPLETE = true;
+		event_name.EVENT_NONE = false;
+		gecko_external_signal(event_name.EVENT_I2C_TRANSFER_COMPLETE);
+		CORE_EXIT_CRITICAL();
+		LOG_INFO("Transfer success");
+		LOG_INFO("IN I2C ISR");
+
+		//LOG_DEBUG("FLAG %d", event_name.EVENT_I2C_TRANSFER_COMPLETE );
+	}
+	else if(I2C_transfer_return_status != i2cTransferInProgress){
+		//set event of i2c transfer error
+		CORE_ENTER_CRITICAL();
+		event_name.EVENT_I2C_TRANSFER_ERROR = 1;
+		event_name.EVENT_NONE = 0;
+		CORE_EXIT_CRITICAL();
+		LOG_INFO("Transfer FAILED\n");
+	}
+
 }
