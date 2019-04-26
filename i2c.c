@@ -13,7 +13,7 @@
 #include <math.h>
 #include "src/event_scheduler.h"
 
-
+extern double ch0_val, ch1_val;
 /*
  * Initializes I2C pins for sensor interfacing
  * Need to be called before the while(1) in main()
@@ -46,7 +46,7 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 {
 
 	LOG_INFO("POWER ON COMMAND SEND");
-	uint8_t data_tx[2] ={0};
+
 	data_tx[0] = command;
 	data_tx[1] = data;
 	/* Setup I2C Transfer Sequence for transmit data */
@@ -103,32 +103,47 @@ void I2C_send_byte(uint8_t device_address, uint8_t reg_addr, uint8_t flag)
  * Note - For lux sensor, Lower byte is read first and then the Higher Byte, as opposed to the
  * inbuilt temperature/humidity sensor on the Blue Gecko Board
  */
-double I2C_read_word(uint8_t device_address)
+double I2C_read_word(uint8_t device_address, uint8_t command)
 {
 	//I2C_TransferSeq_TypeDef  seq_rx;
-	uint16_t data_rx[2] = {0};
+	//data_rx = {0};
+	data_rx = command;
+
 	{
 	/* Setup I2C Transfer Sequence for receiving data */
 		seq_rx.addr	=	device_address << 1;
-		seq_rx.flags	=	I2C_FLAG_READ;
+		seq_rx.flags	=	I2C_FLAG_WRITE_READ;
 		seq_rx.buf[0].data	=	&data_rx;
-		seq_rx.buf[0].len	=	2;
+		seq_rx.buf[0].len	=	1;
+		seq_rx.buf[1].data	=	data_rx_1;
+		seq_rx.buf[1].len	=	2;
+
 	}
 
 	I2C_TransferInit( I2C0, &seq_rx );
 
 	/* 	Storing received data in a 16-bit variable */
 
+	data_buffer = 0;
 
-	data_buffer	=	data_rx[1];
+	data_buffer	=	data_rx_1[1];
 	data_buffer	= data_buffer << 8;
-	data_buffer	|=	data_rx[0];
+	data_buffer	|=	data_rx_1[0];
 
 
-	LOG_INFO("Non double data_rx1 = %d", data_rx[1]);
-	LOG_INFO("Non double data_rx1= %d", data_rx[0]);
+/*	data_buffer |= data_rx;
+gives 35000
+	data_buffer |= (data_rx <<8);*/
 
-	LOG_INFO("Non double Raw_Value = %d", data_buffer);
+
+//	data_buffer |= (data_rx[1] >> 8);
+	//gives something
+//	data_buffer |= data_rx[1];
+
+//	LOG_INFO("Non double data_rx1 = %d", data_rx[1]);
+	//LOG_INFO("Non double data_rx1= %d", data_rx[0]);
+
+	//LOG_INFO("Non double data_buffer = %d", data_buffer);
 	double final_data = (double)(data_buffer);
 	LOG_INFO("Raw_Value = %lf", final_data);
 	return final_data;
@@ -140,7 +155,7 @@ double I2C_read_word(uint8_t device_address)
 double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag)
 {
 	I2C_send_byte(device_address, command, flag);	//for command and control operation to set register address
-	double ret_val = I2C_read_word(device_address);
+	double ret_val = I2C_read_word(device_address, command);
 	return ret_val;
 }
 
@@ -152,8 +167,8 @@ double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag)
 double get_lux_sensor_values(void)
 {
 	double luxVal = 0.0;
-	if ((ch1_val != 0) && (ch0_val != 0))
-	{
+//	if ((ch1_val != 0) && (ch0_val != 0))
+//	{
 		char name[30];
 		double ratio = ch1_val / ch0_val;
 		sprintf(name, "Ratio = %lf", ratio);
@@ -180,7 +195,7 @@ double get_lux_sensor_values(void)
 			luxVal = 0.0;
 
 
-	}
+	//}
 	return luxVal;
 
 }

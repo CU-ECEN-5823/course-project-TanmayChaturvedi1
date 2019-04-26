@@ -40,12 +40,12 @@ int main(void)
   //GPIO_PinModeSet( gpioPortD, 15, gpioModePushPull, 1 );
     I2C_init();
     /*//for lux sensor
-    I2C_send_command(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_CONTROL_REG, I2C_FLAG_WRITE_WRITE , LUX_POWER_ON);	//Power On.*/
+    */
    // I2C_read_byte(LUX_SENSOR_ADDR,LUX_COMMAND_BIT | LUX_CONTROL_REG , I2C_FLAG_WRITE_READ);
 
-    event_name.EVENT_INITIATE_STATE_MACHINE = true;
-    		event_name.EVENT_NONE = false;
-    		acquire_lux_data(START_LUX_STATE_MACHINE);
+    I2C_send_command(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_CONTROL_REG, I2C_FLAG_WRITE_WRITE , LUX_POWER_ON);	//Power On.
+
+
 
 
 

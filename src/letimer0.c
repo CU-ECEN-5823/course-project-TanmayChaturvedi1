@@ -108,7 +108,7 @@ void LETIMER0_IRQHandler(void)
 		//gecko_external_signal(LETIMER_UF_EVENT);
 		LOG_INFO("In UNDER fLOW ISR \n");
 		//displayUpdate();
-		timer_uf_count ++;
+		//timer_uf_count ++;
 	}
 
 	if( interrupt & LETIMER_IF_COMP1 )
@@ -117,8 +117,11 @@ void LETIMER0_IRQHandler(void)
 		event_name.EVENT_SETUP_TIMER_EXPIRED = true;
 		event_name.EVENT_NONE = false;
 		//ext_sig_event |= LETIMER_UF_EVENT;
-
+		extern uint8_t command_flag;
+		if(command_flag == 1)
+		{
 		gecko_external_signal( event_name.EVENT_SETUP_TIMER_EXPIRED );
+		}
 		LETIMER_IntDisable(LETIMER0, LETIMER_IFC_COMP1);
 		/*TO ADD*/
 	}
