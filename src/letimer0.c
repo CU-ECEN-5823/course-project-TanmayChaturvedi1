@@ -73,7 +73,8 @@ void LETIMER0_Config(void)
 void LETIMER0_SetInterrupt(void)
 {
 	/*Enable Underflow interrupt*/
-	LETIMER_IntEnable( LETIMER0, LETIMER_IEN_COMP1 | LETIMER_IEN_UF );
+//	LETIMER_IntEnable( LETIMER0, LETIMER_IEN_COMP1  );
+//	LETIMER_IntEnable( LETIMER0, LETIMER_IEN_UF  );
 	/*Enable Nested Interrupts*/
 	NVIC_EnableIRQ( LETIMER0_IRQn );
 	/*Enable LETIMER0 Interrupt*/
@@ -114,14 +115,13 @@ void LETIMER0_IRQHandler(void)
 	if( interrupt & LETIMER_IF_COMP1 )
 	{
 		LOG_INFO("In COMP1 ISR\n");
-		event_name.EVENT_SETUP_TIMER_EXPIRED = true;
-		event_name.EVENT_NONE = false;
+
 		//ext_sig_event |= LETIMER_UF_EVENT;
-		extern uint8_t command_flag;
-		if(command_flag == 1)
-		{
-		gecko_external_signal( event_name.EVENT_SETUP_TIMER_EXPIRED );
-		}
+
+			event_name.EVENT_SETUP_TIMER_EXPIRED = true;
+			event_name.EVENT_NONE = false;
+			gecko_external_signal( event_name.EVENT_SETUP_TIMER_EXPIRED );
+
 		LETIMER_IntDisable(LETIMER0, LETIMER_IFC_COMP1);
 		/*TO ADD*/
 	}

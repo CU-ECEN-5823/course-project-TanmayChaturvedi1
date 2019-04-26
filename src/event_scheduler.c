@@ -7,11 +7,10 @@
 #include "event_scheduler.h"
 
 extern double lux_value;
+
 // For storing max data in PS
 extern uint16_t max_lux_val;
-uint8_t buffer_flag = 0;
-uint8_t command_flag = 0;
-uint8_t init_cycle_complete = 0;
+
 enum lux_sensor_state current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 
 void acquire_lux_data(uint32_t ext_signal)
@@ -23,7 +22,7 @@ void acquire_lux_data(uint32_t ext_signal)
 
 
 	case LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE:
-		if ( (event_name.EVENT_INITIATE_STATE_MACHINE ) && ext_signal  && (command_flag == 1) )
+		if ( (event_name.EVENT_INITIATE_STATE_MACHINE ) && ext_signal  /*&& (command_flag == 1)*/ )
 		{
 
 			CORE_ENTER_CRITICAL();
@@ -34,17 +33,17 @@ void acquire_lux_data(uint32_t ext_signal)
 			CORE_EXIT_CRITICAL();
 			if (buffer_flag == 0)
 			{
-				ch0_val = I2C_read_word(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA0LOW_REG);	//for command and control operation to set register address
+				I2C_read_word(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA0LOW_REG);	//for command and control operation to set register address
 				nonblock_timerWaitUs(420000);
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE;	//first acquire ch0 val using write + read, then ch1_val using same method
-				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE, 1st byte = %lf", ch0_val);
+				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE, 1st byte");
 			}
 			else if (buffer_flag == 1)
 			{
-				ch1_val =I2C_read_word(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA1LOW_REG);	//for command and control operation to set register address
+				I2C_read_word(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA1LOW_REG);	//for command and control operation to set register address
 				nonblock_timerWaitUs(420000);
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE;	//State remains same to acquire the second byte of data
-				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE, 2nd byte= %lf", ch1_val);
+				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE, 2nd byte");
 			}
 
 		}
@@ -60,27 +59,26 @@ void acquire_lux_data(uint32_t ext_signal)
 
 			if (buffer_flag == 0)
 			{
+				ch0 = read_lux_register();
 				buffer_flag = 1;
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
-				//nonblock_timerWaitUs(2000);
-				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE for ch0");
+				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE for ch0 = %lf", ch0);
 				event_name.EVENT_INITIATE_STATE_MACHINE = true;
 				event_name.EVENT_NONE = false;
 				acquire_lux_data(START_LUX_STATE_MACHINE);
-
-
 			}
 			else if (buffer_flag == 1)
 			{
+				ch1= read_lux_register();
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 				buffer_flag  = 0;
-
-				//command_flag = 1;
-				if (init_cycle_complete == 1){
-				lux_value = get_lux_sensor_values();
-				}
-				init_cycle_complete = 1;
-				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1");
+//				if (init_cycle_complete == 1)
+//				{
+					lux_value = get_lux_sensor_values(ch0, ch1);
+					LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
+			//	}
+				//init_cycle_complete = 1;
+				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
 			}
 		}
 		else if ( ( event_name.EVENT_I2C_TRANSFER_ERROR ) )
@@ -88,58 +86,12 @@ void acquire_lux_data(uint32_t ext_signal)
 			event_name.EVENT_I2C_TRANSFER_COMPLETE = 0;
 			LOG_DEBUG("Error at Write Complete, not done\n");
 			current_state = LUX_SENSOR_WAIT_FOR_POWER_UP;
-
 		}
 		break;
-
-
-//	case LUX_SENSOR_WAIT_FOR_I2C_READ_COMPLETE:
-//		if ( ( event_name.EVENT_I2C_TRANSFER_COMPLETE )  && ext_signal)
-//		{
-//			CORE_ENTER_CRITICAL();
-//			event_name.EVENT_I2C_TRANSFER_COMPLETE = 0;
-//			event_name.EVENT_NONE = 1;
-//			CORE_EXIT_CRITICAL();
-//			char name[30];
-//
-//			if(buffer_flag == 0)
-//			{
-//				sprintf(name, "ch0_val = %lf", ch0_val);
-//				LOG_INFO("%s", name);
-//				buffer_flag = 1;
-//				current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
-//				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_READ_COMPLETE STATE, read ch0_val\n");
-//				/*
-//				 * NEED TO continue state machine for ch1 data val
-//				 *
-//				 *
-//				 * acquire_lux_data(event_name.EVENT_I2C_TRANSFER_COMPLETE);*/
-//			}
-//
-//			else if(buffer_flag == 1)
-//			{
-//				sprintf(name, "ch1_val = %lf", ch1_val);
-//				LOG_INFO("%s", name);
-//				buffer_flag = 0;
-//				lux_value = get_lux_sensor_values();
-//				current_state = LUX_SENSOR_WAIT_FOR_POWER_UP;
-//				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_READ_COMPLETE STATE, read ch1_val\n");
-//			}
-//
-//		}
-//		else if ( ( event_name.EVENT_I2C_TRANSFER_ERROR ))
-//		{
-//			event_name.EVENT_I2C_TRANSFER_COMPLETE = 0;
-//			LOG_DEBUG("Error at Read Complete, not done\n");
-//			current_state = LUX_SENSOR_WAIT_FOR_POWER_UP;
-//
-//		}
-//		break;
 
 	default:
 		LOG_INFO("UNKNOWN STATE");
 		break;
-
 	}
 
 	LOG_INFO("***exited state machine***");

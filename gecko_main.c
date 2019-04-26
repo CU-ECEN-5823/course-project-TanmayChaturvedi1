@@ -268,6 +268,8 @@ volatile uint8 switch_pos = 0;
 // For indexing elements of the node
 static uint16 _primary_elem_index = 0xffff;
 
+
+
 // For storing max data in PS
 uint16_t max_lux_val = 0;
 
@@ -324,13 +326,11 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);
 	      event_name.EVENT_INITIATE_STATE_MACHINE = true;
 	      event_name.EVENT_NONE = false;
-	      extern uint8_t command_flag;
-	      command_flag = 1;
+
+	      //command_flag = 1;
 	      acquire_lux_data(START_LUX_STATE_MACHINE);
 
-			event_name.EVENT_INITIATE_STATE_MACHINE = true;
-			event_name.EVENT_NONE = false;
-			acquire_lux_data(START_LUX_STATE_MACHINE);
+
 
 		//gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,1 );
 		}
@@ -353,6 +353,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
     	case LUX_SENSOR_DATA:
     		//lux_value = get_lux_sensor_values();
+    		//command_flag = 1;
     		event_name.EVENT_INITIATE_STATE_MACHINE = true;
     		event_name.EVENT_NONE = false;
     		acquire_lux_data(START_LUX_STATE_MACHINE);
@@ -415,11 +416,13 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 //    	      }
     	// Set GPIO Interrupt
     	      LOG_INFO("Interrupt Enabled");
+
     	// Initialize mesh lib, up to 8 models
     	      mesh_lib_init(malloc, free, 8);
 //    	      gpio_set_interrupt();
     	      lpn_init();
-    	      //gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+
+    	      gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
 
     	}
 

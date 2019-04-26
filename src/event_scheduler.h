@@ -54,7 +54,9 @@ enum lux_sensor_state {
 
 event_name_t event_name ;
 
-
+uint8_t buffer_flag;
+uint8_t command_flag;
+uint8_t init_cycle_complete;
 
 #define	START_LUX_STATE_MACHINE	(uint32_t)(0x01)
 //#define LETIMER_UF_EVENT		(uint32_t)(0x01)

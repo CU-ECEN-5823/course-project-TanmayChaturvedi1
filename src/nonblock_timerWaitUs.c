@@ -21,6 +21,7 @@
 
 void nonblock_timerWaitUs(uint32_t us_wait)
 {
+	LETIMER_IntEnable( LETIMER0, LETIMER_IEN_COMP1  );
 	if( us_wait >= 61 ) /* Error handling to make sure valid input arg given */
 	{
 		uint32_t initialtick = LETIMER_CounterGet( LETIMER0 );
@@ -30,6 +31,7 @@ void nonblock_timerWaitUs(uint32_t us_wait)
 		else if ( initialtick <= us_wait/1000 )
 			LETIMER_CompareSet( LETIMER0, 1, PERIOD_MS + initialtick - (us_wait /1000) );
 	}
+
 }
 
 

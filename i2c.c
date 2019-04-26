@@ -14,6 +14,8 @@
 #include "src/event_scheduler.h"
 
 extern double ch0_val, ch1_val;
+extern uint8_t command_flag;
+
 /*
  * Initializes I2C pins for sensor interfacing
  * Need to be called before the while(1) in main()
@@ -31,7 +33,6 @@ void I2C_init(void)
 	};
 
 	I2CSPM_Init(&i2cInit);	/*Does not include any blocking inside it*/
-	//I2C_IntEnable( I2C0, I2C_IF_RXDATAV | I2C_IF_TXC | I2C_IF_RXFULL );
 	I2C_IntEnable( I2C0, I2C_IEN_RXDATAV | I2C_IEN_TXC | I2C_IEN_RXFULL );
 	NVIC_EnableIRQ( I2C0_IRQn );
 }
@@ -50,7 +51,6 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 	data_tx[0] = command;
 	data_tx[1] = data;
 	/* Setup I2C Transfer Sequence for transmit data */
-	//I2C_TransferSeq_TypeDef  seq_tx;
 	{
 		seq_tx.addr	=	device_address << 1;
 		seq_tx.flags	=	flag;
@@ -60,8 +60,6 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 		seq_tx.buf[1].len	=	1;
 	};
 
-
-//	I2C_TransferInit( I2C0, &seq_tx );
 I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
 if (return_type != i2cTransferInProgress)
 	{
@@ -69,9 +67,6 @@ if (return_type != i2cTransferInProgress)
 	}
 else
 	LOG_INFO("Transferring");
-
-
-
 }
 
 
@@ -87,7 +82,6 @@ void I2C_send_byte(uint8_t device_address, uint8_t reg_addr, uint8_t flag)
 	data_tx[0] = reg_addr;
 	LOG_INFO("SENDING BYTE");
 	/* Setup I2C Transfer Sequence for transmit data */
-	//I2C_TransferSeq_TypeDef  seq_tx;
 	{
 		seq_tx.addr	=	device_address << 1;
 		seq_tx.flags	=	flag;
@@ -103,10 +97,8 @@ void I2C_send_byte(uint8_t device_address, uint8_t reg_addr, uint8_t flag)
  * Note - For lux sensor, Lower byte is read first and then the Higher Byte, as opposed to the
  * inbuilt temperature/humidity sensor on the Blue Gecko Board
  */
-double I2C_read_word(uint8_t device_address, uint8_t command)
+void I2C_read_word(uint8_t device_address, uint8_t command)
 {
-	//I2C_TransferSeq_TypeDef  seq_rx;
-	//data_rx = {0};
 	data_rx = command;
 
 	{
@@ -121,7 +113,16 @@ double I2C_read_word(uint8_t device_address, uint8_t command)
 	}
 
 	I2C_TransferInit( I2C0, &seq_rx );
+}
 
+
+
+/*
+ * Store the lower data byte and upper data byte returned after Read Word operation
+ * into 1 16-bit buffer
+ */
+double read_lux_register(void)
+{
 	/* 	Storing received data in a 16-bit variable */
 
 	data_buffer = 0;
@@ -130,49 +131,26 @@ double I2C_read_word(uint8_t device_address, uint8_t command)
 	data_buffer	= data_buffer << 8;
 	data_buffer	|=	data_rx_1[0];
 
-
-/*	data_buffer |= data_rx;
-gives 35000
-	data_buffer |= (data_rx <<8);*/
-
-
-//	data_buffer |= (data_rx[1] >> 8);
-	//gives something
-//	data_buffer |= data_rx[1];
-
-//	LOG_INFO("Non double data_rx1 = %d", data_rx[1]);
-	//LOG_INFO("Non double data_rx1= %d", data_rx[0]);
-
-	//LOG_INFO("Non double data_buffer = %d", data_buffer);
 	double final_data = (double)(data_buffer);
 	LOG_INFO("Raw_Value = %lf", final_data);
 	return final_data;
 }
 
-/*
- * I2C routine to write data and read from the sensor
- */
-double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag)
-{
-	I2C_send_byte(device_address, command, flag);	//for command and control operation to set register address
-	double ret_val = I2C_read_word(device_address, command);
-	return ret_val;
-}
-
 
 /*
  * Calculates final lux data based on above mentioned functions and I2C APIs
- * Refer Datasheet of APDS-9301 for more detailed explanation of calculation
+ * Refer Datasheet of APDS-9301 for more detailed explanation of calculation.
+ * values from ADC Channel 0 and ADC Channel 1 are converted into one lux value
  */
-double get_lux_sensor_values(void)
+double get_lux_sensor_values(double ch0_val, double ch1_val)
 {
 	double luxVal = 0.0;
-//	if ((ch1_val != 0) && (ch0_val != 0))
-//	{
+	LOG_INFO("FINAL CH0 = %lf", ch0_val);
+	LOG_INFO("FINAL CH1 = %lf", ch1_val);
+	if ((ch1_val != 0) && (ch0_val != 0))	//Make sure no "divide by zero" Exception occurs!
+	{
 		char name[30];
 		double ratio = ch1_val / ch0_val;
-		sprintf(name, "Ratio = %lf", ratio);
-		LOG_INFO("%s");
 		/* Refer Lux Sensor Datasheet for detailed explanation of below calculation*/
 
 		if ((ratio <= 0.5) && (ratio > 0.0))
@@ -193,9 +171,7 @@ double get_lux_sensor_values(void)
 		}
 		else
 			luxVal = 0.0;
-
-
-	//}
+	}
 	return luxVal;
 
 }
@@ -210,14 +186,18 @@ void I2C0_IRQHandler(void)
 	{
 		//set event of i2c transfer complete
 		CORE_ENTER_CRITICAL();
-		event_name.EVENT_I2C_TRANSFER_COMPLETE = true;
-		event_name.EVENT_NONE = false;
-		gecko_external_signal(event_name.EVENT_I2C_TRANSFER_COMPLETE);
+		if(command_flag == 1)
+		{
+			event_name.EVENT_I2C_TRANSFER_COMPLETE = true;
+			event_name.EVENT_NONE = false;
+			gecko_external_signal(event_name.EVENT_I2C_TRANSFER_COMPLETE);
+		}
+		command_flag = 1;
+
 		CORE_EXIT_CRITICAL();
 		LOG_INFO("Transfer success");
 		LOG_INFO("IN I2C ISR");
 
-		//LOG_DEBUG("FLAG %d", event_name.EVENT_I2C_TRANSFER_COMPLETE );
 	}
 	else if(I2C_transfer_return_status != i2cTransferInProgress){
 		//set event of i2c transfer error
