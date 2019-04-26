@@ -16,7 +16,7 @@
 void I2C_Data_Transfer(void);
 void I2C_init(void);
 void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uint8_t data);
-void I2C_send_byte(uint8_t device_address, uint8_t data_tx, uint8_t flag);
+void I2C_send_byte(uint8_t device_address, uint8_t reg_addr, uint8_t flag);
 double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag);
 double I2C_read_word(uint8_t device_address);
 double get_lux_sensor_values(void);
@@ -33,7 +33,9 @@ double get_lux_sensor_values(void);
 #define LUX_DATA1HIGH_REG		( 0x0F )
 
 //uint8_t	data_tx;
-uint8_t	data_rx[2];
+//uint8_t	data_rx[2];
+//uint8_t	data_rx;
+
 uint8_t data_rx_1;
 uint16_t data_buffer;
 uint16_t temp_Celcius;
@@ -41,7 +43,8 @@ uint16_t temp_Celcius;
 double ch0_val, ch1_val;
 
 
-I2C_TransferSeq_TypeDef  seq_tx, seq_rx;
+I2C_TransferSeq_TypeDef  seq_tx;
+I2C_TransferSeq_TypeDef  seq_rx;
 
 
 #endif /* I2C_H_ */

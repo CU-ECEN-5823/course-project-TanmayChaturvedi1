@@ -322,9 +322,9 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		char old_val[20];
 		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/100.0);
 		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);
-		event_name.EVENT_INITIATE_STATE_MACHINE = true;
-		    		event_name.EVENT_NONE = false;
-		    		acquire_lux_data(START_LUX_STATE_MACHINE);
+//		event_name.EVENT_INITIATE_STATE_MACHINE = true;
+//		event_name.EVENT_NONE = false;
+//		acquire_lux_data(START_LUX_STATE_MACHINE);
 
 		//gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,1 );
 		}

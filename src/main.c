@@ -12,6 +12,9 @@
 #include "src/mydisplay.h"
 #include "src/gpio.h"
 #include "gecko_main.h"
+#include "src/event_scheduler.h"
+#include "src/letimer0.h"
+
 
 extern void gecko_main_init();
 bool mesh_bgapi_listener(struct gecko_cmd_packet *evt);
@@ -31,11 +34,21 @@ int main(void)
 
   displayInit();
 
+  LETIMER0_En_CLK_Tree();
+  LETIMER0_Config();
+  LETIMER0_SetInterrupt();
   //GPIO_PinModeSet( gpioPortD, 15, gpioModePushPull, 1 );
     I2C_init();
     /*//for lux sensor
     I2C_send_command(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_CONTROL_REG, I2C_FLAG_WRITE_WRITE , LUX_POWER_ON);	//Power On.*/
    // I2C_read_byte(LUX_SENSOR_ADDR,LUX_COMMAND_BIT | LUX_CONTROL_REG , I2C_FLAG_WRITE_READ);
+
+    event_name.EVENT_INITIATE_STATE_MACHINE = true;
+    		event_name.EVENT_NONE = false;
+    		acquire_lux_data(START_LUX_STATE_MACHINE);
+
+
+
 extern double lux_value;
   /* Infinite loop */
   while (1) {

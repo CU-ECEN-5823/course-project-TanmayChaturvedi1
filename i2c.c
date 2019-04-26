@@ -54,36 +54,23 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 	{
 		seq_tx.addr	=	device_address << 1;
 		seq_tx.flags	=	flag;
-		seq_tx.buf[0].data = &data_tx;
-		//seq_tx.buf[1].data = &data_tx[1];
-		seq_tx.buf[0].len	=	2;
-		//seq_tx.buf[1].len	=	1;
+		seq_tx.buf[0].data = &data_tx[0];
+		seq_tx.buf[1].data = &data_tx[1];
+		seq_tx.buf[0].len	=	1;
+		seq_tx.buf[1].len	=	1;
 	};
 
 
-	I2C_TransferInit( I2C0, &seq_tx );
-/*I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
+//	I2C_TransferInit( I2C0, &seq_tx );
+I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
 if (return_type != i2cTransferInProgress)
 	{
 	LOG_ERROR("Failed");
-	}*/
-
-
-/*
-	I2C_TransferReturn_TypeDef Transfer_Ret_Status = I2CSPM_Transfer( I2C0, &seq_tx );
-
-	if ( Transfer_Ret_Status != i2cTransferDone )
-	{
-		 log error, return error code of any unexpected situation
-		LOG_ERROR("Failed in I2C Transfer with return status = %d", Transfer_Ret_Status);
 	}
+else
+	LOG_INFO("Transferring");
 
-	else if ( Transfer_Ret_Status == i2cTransferDone )
-	{
-		 Transfer done, continue
-		LOG_INFO("DATA TRANSFERRED");
-	}
-*/
+
 
 }
 
@@ -93,34 +80,23 @@ if (return_type != i2cTransferInProgress)
  * Write a single byte on the I2C bus.
  * Accomplished using Flag - I2C_FLAG_WRITE
  */
-void I2C_send_byte(uint8_t device_address, uint8_t data_tx, uint8_t flag)
+void I2C_send_byte(uint8_t device_address, uint8_t reg_addr, uint8_t flag)
 {
 
+	uint8_t data_tx[1] ={0};
+	data_tx[0] = reg_addr;
 	LOG_INFO("SENDING BYTE");
 	/* Setup I2C Transfer Sequence for transmit data */
 	//I2C_TransferSeq_TypeDef  seq_tx;
 	{
 		seq_tx.addr	=	device_address << 1;
 		seq_tx.flags	=	flag;
-		seq_tx.buf[0].data	=	&data_tx;
+		seq_tx.buf[0].data	=	&data_tx[0];
 		seq_tx.buf[0].len	=	1;
 	};
 
 	I2C_TransferInit( I2C0, &seq_tx );
 
-/*	I2C_TransferReturn_TypeDef Transfer_Ret_Status = I2CSPM_Transfer( I2C0, &seq_tx );
-
-	if ( Transfer_Ret_Status != i2cTransferDone )
-	{
-		 log error, return error code of any unexpected situation
-		LOG_ERROR("Failed in I2C Transfer with return status = %d", Transfer_Ret_Status);
-	}
-
-	else if ( Transfer_Ret_Status == i2cTransferDone )
-	{
-		 Transfer done, continue
-		LOG_INFO("DATA TRANSFERRED");
-	}*/
 }
 
 /* Read word (2 bytes) from the I2C bus
@@ -130,36 +106,29 @@ void I2C_send_byte(uint8_t device_address, uint8_t data_tx, uint8_t flag)
 double I2C_read_word(uint8_t device_address)
 {
 	//I2C_TransferSeq_TypeDef  seq_rx;
+	uint16_t data_rx[2] = {0};
 	{
 	/* Setup I2C Transfer Sequence for receiving data */
 		seq_rx.addr	=	device_address << 1;
 		seq_rx.flags	=	I2C_FLAG_READ;
-		seq_rx.buf[0].data	=	data_rx;
+		seq_rx.buf[0].data	=	&data_rx;
 		seq_rx.buf[0].len	=	2;
 	}
 
 	I2C_TransferInit( I2C0, &seq_rx );
 
-/*
-	I2C_TransferReturn_TypeDef Transfer_Ret_Status_RX = I2CSPM_Transfer( I2C0, &seq_rx );
-
-	if ( Transfer_Ret_Status_RX != i2cTransferDone )
-	{
-		 log error, return error code of any unexpected situation
-		LOG_ERROR("Failed in I2C Receive Sequence with return status", Transfer_Ret_Status_RX);
-	}
-	else if ( Transfer_Ret_Status_RX == i2cTransferDone )
-	{
-		 I2C Receive done, continue
-		LOG_INFO("DATA RECEIVED");
-	}
-*/
-
 	/* 	Storing received data in a 16-bit variable */
+
+
 	data_buffer	=	data_rx[1];
 	data_buffer	= data_buffer << 8;
 	data_buffer	|=	data_rx[0];
 
+
+	LOG_INFO("Non double data_rx1 = %d", data_rx[1]);
+	LOG_INFO("Non double data_rx1= %d", data_rx[0]);
+
+	LOG_INFO("Non double Raw_Value = %d", data_buffer);
 	double final_data = (double)(data_buffer);
 	LOG_INFO("Raw_Value = %lf", final_data);
 	return final_data;
@@ -182,35 +151,38 @@ double get_lux_byte_data(uint8_t device_address, uint8_t command, uint8_t flag)
  */
 double get_lux_sensor_values(void)
 {
-//	double ch0_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA0LOW_REG, I2C_FLAG_WRITE) ;
-	char name[30];
-//	sprintf(name, "new lux = %lf", ch0_val);
-//	LOG_INFO("yo - %s", name);
-//	double ch1_val = get_lux_byte_data(LUX_SENSOR_ADDR, LUX_COMMAND_BIT | LUX_DATA1LOW_REG, I2C_FLAG_WRITE) ;
-	double ratio = ch1_val / ch0_val;
-	sprintf(name, "Ratio = %lf", ratio);
-	/* Refer Lux Sensor Datasheet for detailed explanation of below calculation*/
 	double luxVal = 0.0;
-	if ((ratio <= 0.5) && (ratio > 0.0))
+	if ((ch1_val != 0) && (ch0_val != 0))
 	{
-		luxVal = (0.0304 * ch0_val) - ((0.062 * ch0_val) * (pow((ch1_val/ch0_val), 1.4)));
-	}
-	else if ((ratio <= 0.61) && (ratio > 0.5))
-	{
-		luxVal = (0.0224 * ch0_val) - (0.031 * ch1_val);
-	}
-	else if ((ratio <= 0.80) && (ratio > 0.61))
-	{
-		luxVal = (0.0128 * ch0_val) - (0.0153 * ch1_val);
-	}
-	else if ((ratio <= 1.3) && (ratio > 0.8))
-	{
-		luxVal = (0.00146 * ch0_val) - (0.00112*ch1_val);
-	}
-	else
-		luxVal = 0.0;
+		char name[30];
+		double ratio = ch1_val / ch0_val;
+		sprintf(name, "Ratio = %lf", ratio);
+		LOG_INFO("%s");
+		/* Refer Lux Sensor Datasheet for detailed explanation of below calculation*/
 
+		if ((ratio <= 0.5) && (ratio > 0.0))
+		{
+			luxVal = (0.0304 * ch0_val) - ((0.062 * ch0_val) * (pow((ch1_val/ch0_val), 1.4)));
+		}
+		else if ((ratio <= 0.61) && (ratio > 0.5))
+		{
+			luxVal = (0.0224 * ch0_val) - (0.031 * ch1_val);
+		}
+		else if ((ratio <= 0.80) && (ratio > 0.61))
+		{
+			luxVal = (0.0128 * ch0_val) - (0.0153 * ch1_val);
+		}
+		else if ((ratio <= 1.3) && (ratio > 0.8))
+		{
+			luxVal = (0.00146 * ch0_val) - (0.00112*ch1_val);
+		}
+		else
+			luxVal = 0.0;
+
+
+	}
 	return luxVal;
+
 }
 
 
