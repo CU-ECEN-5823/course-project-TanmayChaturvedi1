@@ -72,12 +72,10 @@ void acquire_lux_data(uint32_t ext_signal)
 				ch1= read_lux_register();
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 				buffer_flag  = 0;
-//				if (init_cycle_complete == 1)
-//				{
-					lux_value = get_lux_sensor_values(ch0, ch1);
-					LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
-			//	}
-				//init_cycle_complete = 1;
+				lux_value = get_lux_sensor_values(ch0, ch1);
+				LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
+				lux_value *= 10;
+				ps_store_sensor_data();
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
 			}
 		}
@@ -115,9 +113,9 @@ void ps_store_sensor_data()
 		displayPrintf(DISPLAY_ROW_PASSKEY, max_val);
 	}
 
-	publish_data(mesh_generic_state_level, lux_value*100, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
+	publish_data(mesh_generic_state_level, lux_value*10, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
 	LOG_INFO("Published: LEVEL_VAL ");
-	if (new_lux_val >= 25000)
+/*	if (new_lux_val >= 25000)
 	{
 		publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_ON, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
 		LOG_INFO("Published: ON ");
@@ -126,7 +124,7 @@ void ps_store_sensor_data()
 	{
 		publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_OFF, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
 		LOG_INFO("Published: OFF ");
-	}
+	}*/
 	//mesh_generic_state_level
 	//mesh_generic_request_on_off
 	//MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID

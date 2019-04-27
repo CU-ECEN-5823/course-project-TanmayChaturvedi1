@@ -324,11 +324,11 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		char old_val[20];
 		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/100.0);
 		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);
-	      event_name.EVENT_INITIATE_STATE_MACHINE = true;
+/*	      event_name.EVENT_INITIATE_STATE_MACHINE = true;
 	      event_name.EVENT_NONE = false;
 
 	      //command_flag = 1;
-	      acquire_lux_data(START_LUX_STATE_MACHINE);
+	      acquire_lux_data(START_LUX_STATE_MACHINE);*/
 
 
 
@@ -422,7 +422,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 //    	      gpio_set_interrupt();
     	      lpn_init();
 
-    	      gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+
 
     	}
 
@@ -501,6 +501,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_CONNECTION, "LPN with friend");
 #endif
+	gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
 	//Need to revert and uncomment it
 //		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
 

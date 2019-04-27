@@ -11,6 +11,8 @@
 #include "gpiointerrupt.h"
 #include "em_core.h"
 #include "native_gecko.h"
+#include "src/log.h"
+#include "gecko_main.h"
 
 #define	LED0_port gpioPortF
 #define LED0_pin	4
@@ -27,6 +29,7 @@ void gpioInit()
 	GPIO_PinModeSet(LED1_port, LED1_pin, gpioModePushPull, false);
 	GPIO_PinModeSet(gpioPortF,6,gpioModePushPull, 1);
 	GPIO_PinModeSet(gpioPortF,7,gpioModePushPull, 1);
+	GPIO_PinModeSet(gpioPortD,12,gpioModeInput, 1);
 	GPIO_PinModeSet(gpioPortC,10,gpioModePushPull, 0);
 	GPIO_PinModeSet(gpioPortC,11,gpioModePushPull, 0);
 
@@ -59,13 +62,13 @@ void gpio_set_interrupt(void)
 //	NVIC_EnableIRQ(GPIO_ODD_IRQn);
 
 	/* configure interrupt for PB0, both falling and rising edges */
-	GPIO_ExtIntConfig(BSP_BUTTON0_PORT, BSP_BUTTON0_PIN, BSP_BUTTON0_PIN, true, true, true);
+	GPIO_ExtIntConfig(gpioPortD, (12U), (12U), false, true, true);
 
 //	/* configure interrupt for PB1, both falling and rising edges */
 //	GPIO_ExtIntConfig(BSP_BUTTON1_PORT, BSP_BUTTON1_PIN, BSP_BUTTON1_PIN, true, true, true);
 
 	/* register the callback function that is invoked when interrupt occurs */
-	GPIOINT_CallbackRegister(BSP_BUTTON0_PIN, gpioint);
+	GPIOINT_CallbackRegister((12U), gpioint);
 
 //	/* register the callback function that is invoked when interrupt occurs */
 //	GPIOINT_CallbackRegister(BSP_BUTTON1_PIN, gpioint);
@@ -77,7 +80,7 @@ void gpio_set_interrupt(void)
 /***************************************************************************//**
  * Sourced from SI Labs Mesh Switch Example. This is like GPIO IRQ Handler
  * This is a callback function that is invoked each time a GPIO interrupt
- * in one of the pushbutton inputs occurs. Pin number is passed as parameter.
+ * in one of the GPIO pin occurs. Pin number is passed as parameter.
  *
  * @param[in] pin  Pin number where interrupt occurs
  *
@@ -89,19 +92,8 @@ void gpio_set_interrupt(void)
  ******************************************************************************/
 void gpioint(uint8_t pin)
 {
-	//CORE_DECLARE_IRQ_STATE;
-	if (pin == BSP_BUTTON0_PIN)
-	{
-		ext_sig_event |= PB0_STATE;
-		gecko_external_signal(ext_sig_event);
-	}
-
-	else if (pin == BSP_BUTTON0_PIN)
-	{
-		ext_sig_event |= PB1_STATE;
-		gecko_external_signal(ext_sig_event);
-	}
-
+	LOG_INFO("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Interrupt Received");
+	publish_data(mesh_generic_request_on_off, 1,MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
 }
 
 void gpioEnableDisplay()
