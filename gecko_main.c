@@ -322,7 +322,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		BTSTACK_CHECK_RESPONSE(gecko_cmd_mesh_node_init());
 		uint16_t old_lux_val = gecko_retrieve_persistent_data(LUX_KEY);
 		char old_val[20];
-		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/100.0);
+		sprintf(old_val, "Lux old: %f",(float)(old_lux_val)/10.0);
 		displayPrintf(DISPLAY_ROW_PASSKEY, old_val);
 /*	      event_name.EVENT_INITIATE_STATE_MACHINE = true;
 	      event_name.EVENT_NONE = false;
@@ -332,7 +332,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 
 
-		//gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,1 );
+		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,1 );
 		}
 
       break;
@@ -354,11 +354,20 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	case LUX_SENSOR_DATA:
     		//lux_value = get_lux_sensor_values();
     		//command_flag = 1;
+    		//load_power_on();
+    		//gecko_cmd_hardware_set_soft_timer(330,FETCH_LUX,1 );
     		event_name.EVENT_INITIATE_STATE_MACHINE = true;
     		event_name.EVENT_NONE = false;
     		acquire_lux_data(START_LUX_STATE_MACHINE);
 
     		break;
+
+//    	case FETCH_LUX:
+//    		LOG_INFO("LOAD POWER MANAGEMENT DONE..........");
+//    		event_name.EVENT_INITIATE_STATE_MACHINE = true;
+//    		event_name.EVENT_NONE = false;
+//    		acquire_lux_data(START_LUX_STATE_MACHINE);
+//    		break;
 
     	case UPDATE_DISPLAY:
 //    		LOG_INFO("display update");
@@ -501,7 +510,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if ECEN5823_INCLUDE_DISPLAY_SUPPORT
 	displayPrintf(DISPLAY_ROW_CONNECTION, "LPN with friend");
 #endif
-	gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
+	gecko_cmd_hardware_set_soft_timer(10* 32768,LUX_SENSOR_DATA,0 );
 	//Need to revert and uncomment it
 //		gecko_cmd_hardware_set_soft_timer(3* 32768,LUX_SENSOR_DATA,0 );
 
@@ -644,6 +653,7 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 			 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
 		 else if (data == MESH_GENERIC_ON_OFF_STATE_OFF)
 			 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");*/
+		 delay = 2;
 		 resp = mesh_lib_generic_client_publish(
 				 model_identifier,
 				 0,
@@ -673,7 +683,7 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 		 char final_lux[30];
 		 sprintf(final_lux, "Lux now = %f",data/10.0);
 		 displayPrintf(DISPLAY_ROW_TEMPVALUE,final_lux);
-
+		 delay1 = 2;
 		 resp1 = mesh_lib_generic_client_publish(
 				 model_identifier,
 				 0,

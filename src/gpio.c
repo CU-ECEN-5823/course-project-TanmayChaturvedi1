@@ -18,6 +18,9 @@
 #define LED0_pin	4
 #define LED1_port gpioPortF
 #define LED1_pin 5
+#define	LUX_Power_Port	gpioPortD
+#define	LUX_Power_Pin	11
+
 
 void gpioInit()
 {
@@ -32,6 +35,8 @@ void gpioInit()
 	GPIO_PinModeSet(gpioPortD,12,gpioModeInput, 1);
 	GPIO_PinModeSet(gpioPortC,10,gpioModePushPull, 0);
 	GPIO_PinModeSet(gpioPortC,11,gpioModePushPull, 0);
+	GPIO_PinModeSet(LUX_Power_Port,LUX_Power_Pin,gpioModePushPull, 0);
+
 
 
 }
@@ -53,6 +58,17 @@ void gpioLed1SetOff()
 	GPIO_PinOutClear(LED1_port,LED1_pin);
 }
 
+void load_power_on(void)
+{
+	LOG_INFO("Sensor VCC Pin Switched On");
+	GPIO_PinOutSet(LUX_Power_Port,LUX_Power_Pin);
+}
+
+void load_power_off(void)
+{
+	GPIO_PinOutClear(LUX_Power_Port,LUX_Power_Pin);
+	LOG_INFO("Sensor VCC Pin Switched Off");
+}
 
 void gpio_set_interrupt(void)
 {

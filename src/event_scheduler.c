@@ -15,6 +15,7 @@ enum lux_sensor_state current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 
 void acquire_lux_data(uint32_t ext_signal)
 {
+
 	CORE_DECLARE_IRQ_STATE;
 
 	switch( current_state ){ /*need definition*/
@@ -80,6 +81,7 @@ void acquire_lux_data(uint32_t ext_signal)
 					 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
 				ps_store_sensor_data();
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
+				//load_power_off();
 			}
 		}
 		else if ( ( event_name.EVENT_I2C_TRANSFER_ERROR ) )

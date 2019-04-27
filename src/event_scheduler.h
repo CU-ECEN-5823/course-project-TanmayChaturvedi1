@@ -17,6 +17,7 @@
 #include "mydisplay.h"
 #include "gecko_main.h"
 #include "src/nonblock_timerWaitUs.h"
+#include "gpio.h"
 
 
 #include "bg_types.h"

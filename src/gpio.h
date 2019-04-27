@@ -22,6 +22,8 @@ void gpio_set_interrupt();
 void gpioint(uint8_t pin);
 void gpioEnableDisplay();
 void gpioSetDisplayExtcomin(bool high);
+void load_power_on(void);
+void load_power_off(void);
 
 
 #define	PB0_STATE	(uint32_t)(0x05)

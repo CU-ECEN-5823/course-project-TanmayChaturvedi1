@@ -39,6 +39,8 @@ int main(void)
   LETIMER0_SetInterrupt();
 
   gpio_set_interrupt();
+
+  //load_power_on();
   //GPIO_PinModeSet( gpioPortD, 15, gpioModePushPull, 1 );
   I2C_init();
   //for lux sensor
