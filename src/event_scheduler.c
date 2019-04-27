@@ -74,7 +74,10 @@ void acquire_lux_data(uint32_t ext_signal)
 				buffer_flag  = 0;
 				lux_value = get_lux_sensor_values(ch0, ch1);
 				LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
-				lux_value *= 10;
+				 if (lux_value > 500.0)
+					 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
+				 else if (lux_value <= 500.0)
+					 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
 				ps_store_sensor_data();
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
 			}
@@ -97,11 +100,17 @@ void acquire_lux_data(uint32_t ext_signal)
 
 
 
-
+/* @brief Store data in NVM Persistent memory and publish data
+ * Checks if the new lux value > max lux val. If yes,store the new max value to PS and publish,
+ * else, just publish using publish_data();
+ *
+ * @param	none
+ * @return	none
+ */
 void ps_store_sensor_data()
 {
 	LOG_INFO(" I2C working Luxval = : %lf",lux_value);
-	uint16_t new_lux_val = (uint16_t)(lux_value * 100);
+	uint16_t new_lux_val = (uint16_t)(lux_value * 10);
 	LOG_INFO("New Luxval = : %d",new_lux_val);
 
 	if (new_lux_val >= max_lux_val)
@@ -109,7 +118,7 @@ void ps_store_sensor_data()
 		max_lux_val = new_lux_val;
 		gecko_store_persistent_data(LUX_KEY, new_lux_val);
 		char max_val[20];
-		sprintf(max_val, "Lux Max: %f",(float)(max_lux_val)/100.0);
+		sprintf(max_val, "Lux Max: %f",(float)(max_lux_val)/10.0);
 		displayPrintf(DISPLAY_ROW_PASSKEY, max_val);
 	}
 

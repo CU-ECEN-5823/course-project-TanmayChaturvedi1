@@ -640,16 +640,16 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 		 req.kind = kind_type;
 		 req.on_off = data;
 		 LOG_INFO("req.on_off %d", req.on_off );
-		 if (data == MESH_GENERIC_ON_OFF_STATE_ON)
+/*		 if (data == MESH_GENERIC_ON_OFF_STATE_ON)
 			 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
 		 else if (data == MESH_GENERIC_ON_OFF_STATE_OFF)
-			 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
+			 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");*/
 		 resp = mesh_lib_generic_client_publish(
 				 model_identifier,
 				 0,
 				 trid,
 				 &req,
-				 transtime,   // transition time in ms
+				 2,   // transition time in ms
 				 delay,
 				 0     // flags
 		 );
@@ -668,8 +668,10 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 		 req1.kind = kind_type;
 		 req1.level.level = data;
 		 LOG_INFO("req1.level.level %d", req1.level.level );
+
+
 		 char final_lux[30];
-		 sprintf(final_lux, "Lux = %f",data/100.0);
+		 sprintf(final_lux, "Lux now = %f",data/10.0);
 		 displayPrintf(DISPLAY_ROW_TEMPVALUE,final_lux);
 
 		 resp1 = mesh_lib_generic_client_publish(
@@ -677,7 +679,7 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 				 0,
 				 trid1,
 				 &req1,
-				 transtime1,   // transition time in ms
+				 2,   // transition time in ms
 				 delay1,
 				 0     // flags
 		 );
@@ -697,7 +699,7 @@ void publish_data(mesh_generic_request_t kind_type, uint16_t data, uint16_t mode
 }
 
 
-/* {Deprecated (As of April 20, This function is no longer used,
+/* {Deprecated (As of April 20, This function is no longer used, as publish-on-button-press not needed.
  * can be used to check if button presses/releases are published to subscriber}
  * Publishes the state of Button PB0 to the subscriber
  * @param	none
@@ -885,6 +887,7 @@ void gecko_store_persistent_data(uint16_t storage_key, uint16_t data)
 
 /**
  * @brief Retrieve persistent data from Flash
+ *
  * @param uint16_t storage key - For lux sensor, enter "LUX_KEY" or 0x4000
  * @return uint16_t retrieved data
  */
