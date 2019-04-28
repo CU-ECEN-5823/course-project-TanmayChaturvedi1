@@ -60,13 +60,13 @@ void I2C_send_command(uint8_t device_address, uint8_t command, uint8_t flag, uin
 		seq_tx.buf[1].len	=	1;
 	};
 
-I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
-if (return_type != i2cTransferInProgress)
+	I2C_TransferReturn_TypeDef return_type = I2C_TransferInit( I2C0, &seq_tx );
+	if (return_type != i2cTransferInProgress)
 	{
-	LOG_ERROR("Failed");
+		LOG_ERROR("Failed");
 	}
-else
-	LOG_INFO("Transferring");
+	else
+		LOG_INFO("Transferring");
 }
 
 
@@ -102,16 +102,14 @@ void I2C_read_word(uint8_t device_address, uint8_t command)
 	data_rx = command;
 
 	{
-	/* Setup I2C Transfer Sequence for receiving data */
+		/* Setup I2C Transfer Sequence for receiving data */
 		seq_rx.addr	=	device_address << 1;
 		seq_rx.flags	=	I2C_FLAG_WRITE_READ;
 		seq_rx.buf[0].data	=	&data_rx;
 		seq_rx.buf[0].len	=	1;
 		seq_rx.buf[1].data	=	data_rx_1;
 		seq_rx.buf[1].len	=	2;
-
 	}
-
 	I2C_TransferInit( I2C0, &seq_rx );
 }
 
@@ -124,9 +122,7 @@ void I2C_read_word(uint8_t device_address, uint8_t command)
 double read_lux_register(void)
 {
 	/* 	Storing received data in a 16-bit variable */
-
 	data_buffer = 0;
-
 	data_buffer	=	data_rx_1[1];
 	data_buffer	= data_buffer << 8;
 	data_buffer	|=	data_rx_1[0];
@@ -149,7 +145,6 @@ double get_lux_sensor_values(double ch0_val, double ch1_val)
 	LOG_INFO("FINAL CH1 = %lf", ch1_val);
 	if ((ch1_val != 0) && (ch0_val != 0))	//Make sure no "divide by zero" Exception occurs!
 	{
-		char name[30];
 		double ratio = ch1_val / ch0_val;
 		/* Refer Lux Sensor Datasheet for detailed explanation of below calculation*/
 
@@ -177,6 +172,15 @@ double get_lux_sensor_values(double ch0_val, double ch1_val)
 }
 
 
+/* @I2C0 interrupt handler
+ * This IRQ handler is called when I2C transfer is in process or completed.
+ * When for the first time, I2C_send_command() is called to power on, command_flag remains
+ * 0 and does not call the acquire_lux_data() state machine. Then, command_flag is set to 1
+ * and events are generated for the I2C state machine
+ *
+ * @param	none
+ * @return	none
+ */
 void I2C0_IRQHandler(void)
 {
 	LOG_INFO("in I2C IRQ");
@@ -197,7 +201,6 @@ void I2C0_IRQHandler(void)
 		CORE_EXIT_CRITICAL();
 		LOG_INFO("Transfer success");
 		LOG_INFO("IN I2C ISR");
-
 	}
 	else if(I2C_transfer_return_status != i2cTransferInProgress){
 		//set event of i2c transfer error
@@ -207,5 +210,4 @@ void I2C0_IRQHandler(void)
 		CORE_EXIT_CRITICAL();
 		LOG_INFO("Transfer FAILED\n");
 	}
-
 }

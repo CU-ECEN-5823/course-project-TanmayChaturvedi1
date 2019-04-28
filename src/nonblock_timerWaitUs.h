@@ -10,11 +10,14 @@
 
 #include "stdint.h"
 
-/**
- * Create delay based on LETIMER0/
- * Prescaler set to 2 to achieve 4 seconds max delay
- * @param time delay in micro-second
- *	eg 80000Us for 80ms
+
+/* @brief	non block (interrupt based) micro-second delay generator
+ *
+ * Used LETIMER0 values to check current value and generate interrupt based on when the Comparison is met.
+ * Timer flow condition is also taken care of in the else loop.
+ *
+ * @param	us_wait	time to wait in micro-second. Minimum value for us_wait is 61 based on timer & ticks resolution
+ * @return	none
  */
 void nonblock_timerWaitUs(uint32_t us_wait);
 

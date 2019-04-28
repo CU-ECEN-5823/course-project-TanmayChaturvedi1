@@ -14,21 +14,23 @@ extern uint16_t max_lux_val;
 
 enum lux_sensor_state current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 
+
+/* @State machine for APDS 9301 Lux Sensor
+ * Called every 10seconds to acquire lux data
+ *
+ * @param	ext_signal:  external signal generated either when I2C transfer complete
+ * or COMP1 interrupt which occurs after generating noin-blocking time delay
+ * @return	none
+ */
 void acquire_lux_data(uint32_t ext_signal)
 {
-
 	CORE_DECLARE_IRQ_STATE;
-
-	switch( current_state ){ /*need definition*/
-
-
+	switch( current_state ){
 
 	case LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE:
 		if ( (event_name.EVENT_INITIATE_STATE_MACHINE ) && ext_signal  /*&& (command_flag == 1)*/ )
 		{
-
 			CORE_ENTER_CRITICAL();
-
 			event_name.EVENT_I2C_TRANSFER_COMPLETE = false;
 			event_name.EVENT_INITIATE_STATE_MACHINE = false;
 			event_name.EVENT_NONE = true;
@@ -47,9 +49,9 @@ void acquire_lux_data(uint32_t ext_signal)
 				current_state = LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE;	//State remains same to acquire the second byte of data
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATE, 2nd byte");
 			}
-
 		}
 		break;
+
 
 	case LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE:
 		if ( ( event_name.EVENT_SETUP_TIMER_EXPIRED )   && ext_signal)
@@ -58,7 +60,6 @@ void acquire_lux_data(uint32_t ext_signal)
 			event_name.EVENT_SETUP_TIMER_EXPIRED = false;
 			event_name.EVENT_NONE = true;
 			CORE_EXIT_CRITICAL();
-
 			if (buffer_flag == 0)
 			{
 				ch0 = read_lux_register();
@@ -76,16 +77,13 @@ void acquire_lux_data(uint32_t ext_signal)
 				buffer_flag  = 0;
 				lux_value = get_lux_sensor_values(ch0, ch1);
 				LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
-				 if (lux_value > 500.0)
-
-					 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
-				 else if (lux_value <= 500.0)
-					 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
+				if (lux_value > LUX_THRESHOLD)
+					displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
+				else if (lux_value <= LUX_THRESHOLD)
+					displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
 				ps_store_sensor_data();
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
 				acquisiton_flag = 1;
-				//gecko_cmd_hardware_set_soft_timer(350, LOAD_OFF, 1);
-
 			}
 		}
 		else if ( ( event_name.EVENT_I2C_TRANSFER_ERROR ) )
@@ -98,7 +96,6 @@ void acquire_lux_data(uint32_t ext_signal)
 
 	default:
 		LOG_INFO("UNKNOWN STATE");
-		//load_power_off();
 		break;
 	}
 
@@ -106,7 +103,6 @@ void acquire_lux_data(uint32_t ext_signal)
 	{
 		acquisiton_flag = 0;
 		command_flag = 0;
-
 	}
 	LOG_INFO("***exited state machine***");
 }
@@ -138,16 +134,6 @@ void ps_store_sensor_data()
 	publish_data(mesh_generic_state_level, lux_value*10, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
 	LOG_INFO("Published: LEVEL_VAL ");
 	load_power_off();
-/*	if (new_lux_val >= 25000)
-	{
-		publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_ON, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
-		LOG_INFO("Published: ON ");
-	}
-	else
-	{
-		publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_OFF, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );
-		LOG_INFO("Published: OFF ");
-	}*/
 	//mesh_generic_state_level
 	//mesh_generic_request_on_off
 	//MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID
