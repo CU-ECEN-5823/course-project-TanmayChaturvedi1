@@ -34,3 +34,17 @@ Model
 * [Group Project Document Folder Link](https://drive.google.com/drive/u/0/folders/19pP2BnPFkOunKWceiNoMzz06ycwfbmVY)
 * [Individual Project Document Folder Link](https://drive.google.com/drive/u/0/folders/13ImMufIetzgHsnXX1L5a2Kr49Aut80EE)
 
+## Bluetooth Mesh Final Project Final Update [April 27, 2019]
+
+* [Dev Update] In gecko_main.c, state machine is called and timing for I2C sensor initialization and its ADC data conversion is followed
+* [Dev Update] In event_scheduler.c, state machine for lux sensor implemented using interrupt-based non-blocking I2C routines
+* [Dev Update] In gpio.c, Interrupt enabled for fire sensor on PD12 pin of expansion header
+* [Dev Update] In publish_data() inside gecko_main.c, Raw lux sensor values are published using MESH_GENERIC_LEVEL_CLIENT_MODEL_ID and fire alert published using 
+MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID
+* [Project Update] Bluetooth Mesh - Provisioning, Low Power Node Initialization, Data Publishing - Working
+* [Project Update] Bluetooth Mesh Low Power Node - Deep sleep enabled, I2C based lux sensor and GPIO-interrupt based sensor - Working
+* [Project Update] Bluetooth Mesh - LPN publishing data to Friend node using 2 models (Generic On/off and Generic Level) - Working
+* [Project Update] All initially proposed elements - Tested and Working
+* [Group Project Document Folder Link](https://drive.google.com/drive/u/0/folders/19pP2BnPFkOunKWceiNoMzz06ycwfbmVY)
+* [Individual Project Document Folder Link](https://drive.google.com/drive/u/0/folders/13ImMufIetzgHsnXX1L5a2Kr49Aut80EE)
+
