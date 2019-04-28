@@ -35,6 +35,7 @@
 #define	LUX_SENSOR_DATA			  40
 #define	I2C_INIT_TIMER_EXPIRE	  99
 #define	FETCH_LUX				  88
+#define	LOAD_OFF				  55
 
 
 /* ***************************************************

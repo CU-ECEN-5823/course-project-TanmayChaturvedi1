@@ -7,6 +7,7 @@
 #include "event_scheduler.h"
 
 extern double lux_value;
+uint8_t acquisiton_flag= 0;
 
 // For storing max data in PS
 extern uint16_t max_lux_val;
@@ -76,27 +77,37 @@ void acquire_lux_data(uint32_t ext_signal)
 				lux_value = get_lux_sensor_values(ch0, ch1);
 				LOG_INFO("!!!!!CALCULATED LUXVAL = %lf", lux_value);
 				 if (lux_value > 500.0)
+
 					 displayPrintf(DISPLAY_ROW_ACTION,"ABOVE THRESHOLD");
 				 else if (lux_value <= 500.0)
 					 displayPrintf(DISPLAY_ROW_ACTION,"BELOW THRESHOLD");
 				ps_store_sensor_data();
 				LOG_INFO("In LUX_SENSOR_WAIT_FOR_I2C_WRITE_READ_COMPLETE STATEfor ch1 = %lf", ch1);
-				//load_power_off();
+				acquisiton_flag = 1;
+				//gecko_cmd_hardware_set_soft_timer(350, LOAD_OFF, 1);
+
 			}
 		}
 		else if ( ( event_name.EVENT_I2C_TRANSFER_ERROR ) )
 		{
 			event_name.EVENT_I2C_TRANSFER_COMPLETE = 0;
 			LOG_DEBUG("Error at Write Complete, not done\n");
-			current_state = LUX_SENSOR_WAIT_FOR_POWER_UP;
+			current_state = LUX_SENSOR_WAIT_FOR_I2C_COMMAND_COMPLETE;
 		}
 		break;
 
 	default:
 		LOG_INFO("UNKNOWN STATE");
+		//load_power_off();
 		break;
 	}
 
+	if (acquisiton_flag == 1)
+	{
+		acquisiton_flag = 0;
+		command_flag = 0;
+
+	}
 	LOG_INFO("***exited state machine***");
 }
 
@@ -120,12 +131,13 @@ void ps_store_sensor_data()
 		max_lux_val = new_lux_val;
 		gecko_store_persistent_data(LUX_KEY, new_lux_val);
 		char max_val[20];
-		sprintf(max_val, "Lux Max: %f",(float)(max_lux_val)/10.0);
+		sprintf(max_val, "Lux Max = %f",(float)(max_lux_val)/10.0);
 		displayPrintf(DISPLAY_ROW_PASSKEY, max_val);
 	}
 
 	publish_data(mesh_generic_state_level, lux_value*10, MESH_GENERIC_LEVEL_CLIENT_MODEL_ID );
 	LOG_INFO("Published: LEVEL_VAL ");
+	load_power_off();
 /*	if (new_lux_val >= 25000)
 	{
 		publish_data(mesh_generic_request_on_off, MESH_GENERIC_ON_OFF_STATE_ON, MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID );

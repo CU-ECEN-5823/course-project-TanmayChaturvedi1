@@ -50,7 +50,6 @@ enum lux_sensor_state {
 	bool	EVENT_I2C_TRANSFER_ERROR;
 	bool	EVENT_INITIATE_STATE_MACHINE;
 	bool	EVENT_SETUP_TIMER_EXPIRED;	//for COMP1 Interrupt
-	bool	EVENT_TIMER_UNDERFLOW_INT;	//for COMP0 Underflow interrupt
 }event_name_t;
 
 event_name_t event_name ;

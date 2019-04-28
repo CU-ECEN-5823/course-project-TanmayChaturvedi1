@@ -203,7 +203,7 @@ void I2C0_IRQHandler(void)
 		//set event of i2c transfer error
 		CORE_ENTER_CRITICAL();
 		event_name.EVENT_I2C_TRANSFER_ERROR = 1;
-		event_name.EVENT_NONE = 0;
+		event_name.EVENT_NONE = false;
 		CORE_EXIT_CRITICAL();
 		LOG_INFO("Transfer FAILED\n");
 	}

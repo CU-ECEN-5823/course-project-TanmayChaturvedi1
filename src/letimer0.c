@@ -119,6 +119,9 @@ void LETIMER0_IRQHandler(void)
 		//ext_sig_event |= LETIMER_UF_EVENT;
 
 			event_name.EVENT_SETUP_TIMER_EXPIRED = true;
+			event_name.EVENT_I2C_TRANSFER_COMPLETE = false;
+			event_name.EVENT_I2C_TRANSFER_ERROR = false;
+			event_name.EVENT_INITIATE_STATE_MACHINE = false;
 			event_name.EVENT_NONE = false;
 			gecko_external_signal( event_name.EVENT_SETUP_TIMER_EXPIRED );
 
